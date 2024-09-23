@@ -27,6 +27,7 @@ typedef struct {
   cpu_t *cpu;
   relogio_t *relogio;
   console_t *console;
+  aleatorio_t *aleatorio;
   es_t *es;
   controle_t *controle;
 } hardware_t;
@@ -39,6 +40,7 @@ static void cria_hardware(hardware_t *hw)
   // cria dispositivos de E/S
   hw->console = console_cria();
   hw->relogio = relogio_cria();
+  hw->aleatorio = aleatorio_cria(time(NULL));
 
   // cria o controlador de E/S e registra os dispositivos
   //   por exemplo, o dispositivo 8 do controlador de E/S (e da CPU) será o
@@ -60,10 +62,9 @@ static void cria_hardware(hardware_t *hw)
   // lê relógio virtual, relógio real
   es_registra_dispositivo(hw->es, D_RELOGIO_INSTRUCOES, hw->relogio, 0, relogio_leitura, NULL);
   es_registra_dispositivo(hw->es, D_RELOGIO_REAL      , hw->relogio, 1, relogio_leitura, NULL);
-  // lê gerador de números aleatórios
-  aleatorio_t *aleatorio = aleatorio_cria(time(NULL));
-  es_registra_dispositivo(hw->es, D_ALEATORIO_SEED, aleatorio, 0, aleatorio_leitura, NULL);
-  es_registra_dispositivo(hw->es, D_ALEATORIO_NUMERO, aleatorio, 1, aleatorio_leitura, NULL);
+  // lê seed, lê número aleatório
+  es_registra_dispositivo(hw->es, D_ALEATORIO_SEED, hw->aleatorio, 0, aleatorio_leitura, NULL);
+  es_registra_dispositivo(hw->es, D_ALEATORIO_NUMERO, hw->aleatorio, 1, aleatorio_leitura, NULL);
 
   // cria a unidade de execução e inicializa com a memória e o controlador de E/S
   hw->cpu = cpu_cria(hw->mem, hw->es);
@@ -80,6 +81,7 @@ static void destroi_hardware(hardware_t *hw)
   es_destroi(hw->es);
   relogio_destroi(hw->relogio);
   console_destroi(hw->console);
+  aleatorio_destroi(hw->aleatorio);
   mem_destroi(hw->mem);
 }
 

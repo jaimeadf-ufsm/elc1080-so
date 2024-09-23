@@ -11,7 +11,7 @@
 typedef struct aleatorio_t aleatorio_t;
 
 // cria e inicializa um gerador de número aleatórios
-aleatorio_t *aleatorio_cria(int seed);
+aleatorio_t *aleatorio_cria(unsigned int seed);
 
 // destroi um gerador de números aleatórios
 void aleatorio_destroi(aleatorio_t *self);

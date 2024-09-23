@@ -9,10 +9,10 @@
 #include "aleatorio.h"
 
 struct aleatorio_t {
-    int seed;
+    unsigned int seed;
 };
 
-aleatorio_t *aleatorio_cria(int seed) {
+aleatorio_t *aleatorio_cria(unsigned int seed) {
     aleatorio_t *self;
     self = malloc(sizeof(aleatorio_t));
     assert(self != NULL);
