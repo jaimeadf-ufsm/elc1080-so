@@ -9,6 +9,7 @@ RELOGIO_REAL DEFINE 17
 
     desv main
 
+num_1 valor 1
 num_10 valor 10
 
 char_nl valor 10
@@ -21,6 +22,7 @@ msg_segs string "s"
 
 esc_char_tmp espaco 1
 esc_uint_tmp espaco 1
+esc_uint_mult espaco 1
 
 esc_str_tmp espaco 1
 
@@ -67,21 +69,38 @@ esc_char_loop_ok
 esc_uint espaco 1
     armm esc_uint_tmp
 
-esc_uint_loop
+    trax
+    cargm num_1
     trax
 
-    cpxa
-    div num_10
-    armm esc_uint_tmp
+esc_uint_loop_exp
+    trax
+    mult num_10
 
-    cpxa
-    resto num_10
-    soma char_0
-    chama esc_char
+    trax
+    div num_10
+
+    desvnz esc_uint_loop_exp
+
+    trax
+    
+    div num_10
+
+esc_uint_loop_esc
+    armm esc_uint_mult
 
     cargm esc_uint_tmp
 
-    desvnz esc_uint_loop
+    div esc_uint_mult
+    resto num_10
+
+    soma char_0
+    chama esc_char
+
+    cargm esc_uint_mult
+    div num_10
+
+    desvnz esc_uint_loop_esc
 
     ret esc_uint
 
