@@ -10,11 +10,13 @@
 #include "relogio.h"
 #include "console.h"
 #include "terminal.h"
+#include "aleatorio.h"
 #include "es.h"
 #include "dispositivos.h"
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 // constantes
 #define MEM_TAM 2000        // tamanho da memória principal
@@ -58,6 +60,10 @@ static void cria_hardware(hardware_t *hw)
   // lê relógio virtual, relógio real
   es_registra_dispositivo(hw->es, D_RELOGIO_INSTRUCOES, hw->relogio, 0, relogio_leitura, NULL);
   es_registra_dispositivo(hw->es, D_RELOGIO_REAL      , hw->relogio, 1, relogio_leitura, NULL);
+  // lê gerador de números aleatórios
+  aleatorio_t *aleatorio = aleatorio_cria(time(NULL));
+  es_registra_dispositivo(hw->es, D_ALEATORIO_SEED, aleatorio, 0, aleatorio_leitura, NULL);
+  es_registra_dispositivo(hw->es, D_ALEATORIO_NUMERO, aleatorio, 1, aleatorio_leitura, NULL);
 
   // cria a unidade de execução e inicializa com a memória e o controlador de E/S
   hw->cpu = cpu_cria(hw->mem, hw->es);
