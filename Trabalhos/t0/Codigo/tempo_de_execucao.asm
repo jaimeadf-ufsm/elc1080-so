@@ -71,7 +71,11 @@ esc_uint espaco 1
 
     trax
     cargm num_1
+    
     trax
+    div num_10
+    
+    desv esc_uint_cond_exp
 
 esc_uint_loop_exp
     trax
@@ -80,11 +84,10 @@ esc_uint_loop_exp
     trax
     div num_10
 
+esc_uint_cond_exp
     desvnz esc_uint_loop_exp
 
     trax
-    
-    div num_10
 
 esc_uint_loop_esc
     armm esc_uint_mult
