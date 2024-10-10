@@ -41,10 +41,11 @@ Ver [aqui](https://www.ufsm.br/ementario/disciplinas/ELC1080/).
 |    2 | 12set  | apresentação do código do t0 (em [C](Assuntos/c.md))
 |    3 | 17set  | origens de SO -- programa monitor, processamento em lote, multiprogramação
 |    4 | 19set  | processos -- modo supervisor, estado do processador, interrupção, estados de um processo, criação e morte
-|    5 | 24set  | 
-|    6 |  1out  | 
-|    7 |  3out  | 
-|    8 |  8out  | 
+|    5 | 24set  | processos -- tabela de processos, funcionamento básico de um SO
+|    6 | 26set  | apresentação do t1
+|      |  1out  | [vade retro vīrus](https://www.ufsm.br/2024/09/30/nota-atividades-administrativas-e-academicas-presenciais-suspensas-ate-01-de-outubro)
+|    7 |  3out  | mais detalhes do t1; escalonamento
+|    8 |  8out  | algoritmos de escalonamento
 |    9 | 10out  | 
 |   10 | 15out  | 
 |   11 | 17out  | 
@@ -108,5 +109,6 @@ Ver [aqui](https://www.ufsm.br/ementario/disciplinas/ELC1080/).
 |    id | prazo | assunto
 | ----: | :---- | :-----------
 | t0    | 24set | [simulador de computador](/Trabalhos/t0) \| entrega = dispositivo rand, programa de adivinhar; forma de entrega: mail com arquivos ou link para git (faz um branch)
+| t1    |       | [implementação de processos](/Trabalhos/t1)
 
 
