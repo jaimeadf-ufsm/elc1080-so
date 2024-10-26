@@ -148,10 +148,11 @@ static void so_salva_estado_da_cpu(so_t *self)
   //   CPU na memória, nos endereços IRQ_END_*
   // se não houver processo corrente, não faz nada
 
-  proc_t *proc = esc_proc_executando(self->esc);
+  proc_t *proc = esc_proc_corrente(self->esc);
 
-  if (proc == NULL)
+  if (proc == NULL) {
     return;
+  }
   
   int PC, A, X;
   mem_le(self->mem, IRQ_END_PC, &PC);
@@ -176,10 +177,9 @@ static void so_trata_pendencias(so_t *self)
   for (int i = 0; i < esc_proc_qtd(self->esc); i++) {
     proc_t *proc = tabela[i];
 
-    if (proc_estado(proc) != PROC_ESTADO_BLOQUEADO)
-      continue;
-    
-    so_trata_bloq(self, proc);
+    if (proc_estado(proc) == PROC_ESTADO_BLOQUEADO) {
+      so_trata_bloq(self, proc);
+    }
   }
 }
 
@@ -189,7 +189,7 @@ static void so_escalona(so_t *self)
   //   corrente; pode continuar sendo o mesmo de antes ou não
   // t1: na primeira versão, escolhe um processo caso o processo corrente não possa continuar
   //   executando. depois, implementar escalonador melhor
-  esc_proximo_proc(self->esc);
+  esc_escalona_proc(self->esc);
 }
 
 static int so_despacha(so_t *self)
@@ -199,10 +199,11 @@ static int so_despacha(so_t *self)
   // o valor retornado será o valor de retorno de CHAMAC
   if (self->erro_interno) return 1;
 
-  proc_t *proc = esc_proc_executando(self->esc);
+  proc_t *proc = esc_proc_corrente(self->esc);
 
-  if (proc == NULL)
+  if (proc == NULL) {
     return 1;
+  }
   
   int PC = proc_PC(proc);
   int A = proc_A(proc);
@@ -367,7 +368,7 @@ static void so_trata_irq_relogio(so_t *self)
   // t1: deveria tratar a interrupção
   //   por exemplo, decrementa o quantum do processo corrente, quando se tem
   //   um escalonador com quantum
-  console_printf("SO: interrupção do relógio (não tratada)");
+  esc_tictac(self->esc);
 }
 
 // foi gerada uma interrupção para a qual o SO não está preparado
@@ -433,10 +434,11 @@ static void so_chamada_le(so_t *self)
   //     o caso
   // implementação lendo direto do terminal A
   //   T1: deveria usar dispositivo de entrada corrente do processo
-  proc_t *proc = esc_proc_executando(self->esc);
+  proc_t *proc = esc_proc_corrente(self->esc);
 
-  if (proc == NULL)
+  if (proc == NULL) {
     return;
+  }
   
   // escreve no reg A do processador
   // (na verdade, na posição onde o processador vai pegar o A quando retornar da int)
@@ -446,10 +448,11 @@ static void so_chamada_le(so_t *self)
   int porta = proc_porta(proc);
   int dado;
 
-  if (porta != -1 && com_le_porta(self->com, porta, &dado))
+  if (porta != -1 && com_le_porta(self->com, porta, &dado)) {
     proc_define_A(proc, dado);
-  else
+  } else {
     esc_bloqueia_proc(self->esc, proc_id(proc), PROC_BLOQ_LEITURA, 0);
+  }
 }
 
 // implementação da chamada se sistema SO_ESCR
@@ -460,10 +463,11 @@ static void so_chamada_escr(so_t *self)
   //   T1: deveria bloquear o processo se dispositivo ocupado
   // implementação escrevendo direto do terminal A
   //   T1: deveria usar o dispositivo de saída corrente do processo
-  proc_t *proc = esc_proc_executando(self->esc);
+  proc_t *proc = esc_proc_corrente(self->esc);
 
-  if (proc == NULL)
+  if (proc == NULL) {
     return;
+  }
 
   // está lendo o valor de X e escrevendo o de A direto onde o processador colocou/vai pegar
   // T1: deveria usar os registradores do processo que está realizando a E/S
@@ -472,12 +476,9 @@ static void so_chamada_escr(so_t *self)
   int porta = proc_porta(proc);
   int dado = proc_X(proc);
 
-  console_printf("SO: escrevendo %d na porta %d", dado, porta);
-
-  if (porta != -1 && com_escreve_porta(self->com, porta, dado))
+  if (porta != -1 && com_escreve_porta(self->com, porta, dado)) {
     proc_define_A(proc, 0);
-  else {
-    console_printf("SO: bloqueando processo %d para escrita", proc_id(proc));
+  } else {
     esc_bloqueia_proc(self->esc, proc_id(proc), PROC_BLOQ_ESCRITA, dado);
   }
 }
@@ -489,10 +490,11 @@ static void so_chamada_cria_proc(so_t *self)
   // ainda sem suporte a processos, carrega programa e passa a executar ele
   // quem chamou o sistema não vai mais ser executado, coitado!
   // T1: deveria criar um novo processo
-  proc_t *proc = esc_proc_executando(self->esc);
+  proc_t *proc = esc_proc_corrente(self->esc);
 
-  if (proc == NULL)
+  if (proc == NULL) {
     return;
+  }
 
   // em X está o endereço onde está o nome do arquivo
   // t1: deveria ler o X do descritor do processo criador
@@ -517,49 +519,53 @@ static void so_chamada_cria_proc(so_t *self)
 // mata o processo com pid X (ou o processo corrente se X é 0)
 static void so_chamada_mata_proc(so_t *self)
 {
-  proc_t *proc = esc_proc_executando(self->esc);
+  proc_t *proc = esc_proc_corrente(self->esc);
 
-  if (proc == NULL)
+  if (proc == NULL) {
     return;
+  }
 
   // T1: deveria matar um processo
   // ainda sem suporte a processos, retorna erro -1
   int pid_alvo = proc_X(proc);
   proc_t *proc_alvo = esc_busca_proc(self->esc, pid_alvo);
 
-  if (pid_alvo == 0)
-    proc_alvo = esc_proc_executando(self->esc);
+  if (pid_alvo == 0) {
+    proc_alvo = esc_proc_corrente(self->esc);
+  }
   
-  if (proc_alvo != NULL && so_mata_proc(self, proc_id(proc_alvo)))
+  if (proc_alvo != NULL && so_mata_proc(self, proc_id(proc_alvo))) {
     proc_define_A(proc, 0);
-  else
+  } else {
     proc_define_A(proc, -1);
+  }
 }
 
 // implementação da chamada se sistema SO_ESPERA_PROC
 // espera o fim do processo com pid X
 static void so_chamada_espera_proc(so_t *self)
 {
-  proc_t *proc = esc_proc_executando(self->esc);
+  proc_t *proc = esc_proc_corrente(self->esc);
 
-  if (proc == NULL)
+  if (proc == NULL) {
     return;
+  }
 
   // T1: deveria bloquear o processo se for o caso (e desbloquear na morte do esperado)
   // ainda sem suporte a processos, retorna erro -1
   int pid_alvo = proc_bloq_arg(proc);
   proc_t *proc_alvo = esc_busca_proc(self->esc, pid_alvo);
 
-  if (proc_alvo != NULL && proc_alvo != proc) {
-    if (proc_estado(proc_alvo) == PROC_ESTADO_MORTO)
-      proc_define_A(proc, 0);
-    else
-      esc_bloqueia_proc(self->esc, proc_id(proc), PROC_BLOQ_ESPERA_PROC, pid_alvo);
-
+  if (proc_alvo == NULL || proc_alvo == proc) {
+    proc_define_A(proc, -1);
     return;
   }
 
-  proc_define_A(proc, -1);
+  if (proc_estado(proc_alvo) == PROC_ESTADO_MORTO) {
+    proc_define_A(proc, 0);
+  } else {
+    esc_bloqueia_proc(self->esc, proc_id(proc), PROC_BLOQ_ESPERA_PROC, pid_alvo);
+  }
 }
 
 // GERENCIAMENTO DE PROCESSOS{{{1
@@ -567,8 +573,9 @@ static proc_t *so_gera_proc(so_t *self, char *nome_do_executavel)
 {
   int end = so_carrega_programa(self, nome_do_executavel);
 
-  if (end <= 0)
+  if (end <= 0) {
     return NULL;
+  }
 
   proc_t *proc = esc_inicia_proc(self->esc, end);
   int porta = com_porta_disponivel(self->com);
@@ -585,8 +592,9 @@ static bool so_mata_proc(so_t *self, int pid)
 {
   proc_t *proc = esc_busca_proc(self->esc, pid);
 
-  if (proc == NULL)
+  if (proc == NULL) {
     return false;
+  }
   
   int porta = proc_porta(proc);
 
