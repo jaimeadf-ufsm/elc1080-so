@@ -3,9 +3,6 @@
 
 #include <stdbool.h>
 
-typedef struct esc_t esc_t;
-typedef struct proc_t proc_t;
-
 typedef enum {
     ESC_MODO_SIMPLES,
     ESC_MODO_CIRCULAR,
@@ -28,8 +25,39 @@ typedef enum {
     PROC_BLOQ_N
 } proc_bloq_motivo_t;
 
+typedef struct esc_t esc_t;
+typedef struct proc_t proc_t;
+
+typedef struct esc_metricas_t esc_metricas_t;
+
+typedef struct proc_estado_metricas_t proc_estado_metricas_t;
+typedef struct proc_metricas_t proc_metricas_t;
+
+struct esc_metricas_t
+{
+    int n_preempcoes;
+    int n_processos_criados;
+
+    int t_total_exec;
+    int t_total_ocioso;
+};
+
+struct proc_estado_metricas_t
+{
+    int n_vezes;
+    int t_total;
+};
+
+struct proc_metricas_t
+{
+    int n_preempcoes;
+    proc_estado_metricas_t estados[PROC_ESTADO_N];
+};
+
 esc_t *esc_cria();
 void esc_destroi(esc_t *self);
+
+esc_metricas_t esc_metricas(esc_t *self);
 
 int esc_proc_qtd(esc_t *self);
 
@@ -50,6 +78,7 @@ void esc_tictac(esc_t *self);
 
 int proc_id(proc_t *self);
 proc_estado_t proc_estado(proc_t *self);
+proc_metricas_t proc_metricas(proc_t *self);
 
 int proc_PC(proc_t *self);
 int proc_A(proc_t *self);

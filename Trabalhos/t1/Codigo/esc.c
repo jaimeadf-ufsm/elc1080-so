@@ -39,29 +39,38 @@ struct proc_t
 
   int porta;
 
+  int criado_em;
+  int terminado_em;
+
+  int alterado_em;
+
+  proc_metricas_t metricas;
+
   proc_t *proximo;
   proc_t *anterior;
 };
 
-proc_t *proc_cria(int id, int end);
-void proc_destroi(proc_t *self);
+static void esc_escalona_proc_simples(esc_t *self);
+static void esc_escalona_proc_circular(esc_t *self);
+static void esc_escalona_proc_prioritario(esc_t *self);
 
-double proc_prioridade(proc_t *self);
-void proc_reprioriza(proc_t *self, double t_exec, double t_quantum);
+static proc_t *proc_cria(int id, int end);
+static void proc_destroi(proc_t *self);
 
-void proc_executa(proc_t *self);
-void proc_para(proc_t *self);
-void proc_bloqueia(proc_t *self, proc_bloq_motivo_t motivo, int arg);
-void proc_desbloqueia(proc_t *self);
-void proc_encerra(proc_t *self);
+static double proc_prioridade(proc_t *self);
+static void proc_reprioriza(proc_t *self, double t_exec, double t_quantum);
 
-void proc_insere_fila(proc_t *self, proc_t **fila);
-void proc_remove_fila(proc_t *self, proc_t **fila);
-void proc_avanca_fila(proc_t **fila);
+static void proc_executa(proc_t *self);
+static void proc_para(proc_t *self);
+static void proc_bloqueia(proc_t *self, proc_bloq_motivo_t motivo, int arg);
+static void proc_desbloqueia(proc_t *self);
+static void proc_encerra(proc_t *self);
 
-void esc_escalona_proc_simples(esc_t *self);
-void esc_escalona_proc_circular(esc_t *self);
-void esc_escalona_proc_prioritario(esc_t *self);
+static void proc_altera_estado(proc_t *self, proc_estado_t estado);
+
+static void proc_insere_fila(proc_t *self, proc_t **fila);
+static void proc_remove_fila(proc_t *self, proc_t **fila);
+static void proc_avanca_fila(proc_t **fila);
 
 esc_t *esc_cria()
 {
@@ -92,7 +101,6 @@ void esc_destroi(esc_t *self)
   }
 
   free(self->proc_tabela);
-  free(self->proc_corrente);
 }
 
 int esc_proc_qtd(esc_t *self)
@@ -237,7 +245,12 @@ void esc_escalona_proc(esc_t *self)
   }
 }
 
-void esc_escalona_proc_simples(esc_t *self)
+void esc_tictac(esc_t *self)
+{
+  self->t_restante--;
+}
+
+static void esc_escalona_proc_simples(esc_t *self)
 {
   if (
     (self->proc_corrente != NULL) &&
@@ -258,7 +271,7 @@ void esc_escalona_proc_simples(esc_t *self)
   }
 }
 
-void esc_escalona_proc_circular(esc_t *self)
+static void esc_escalona_proc_circular(esc_t *self)
 {
   if (self->proc_fila == NULL) {
     return;
@@ -270,7 +283,7 @@ void esc_escalona_proc_circular(esc_t *self)
   proc_avanca_fila(&self->proc_fila);
 }
 
-void esc_escalona_proc_prioritario(esc_t *self)
+static void esc_escalona_proc_prioritario(esc_t *self)
 {
   if (self->proc_corrente != NULL) {
     double t_exec = self->t_quantum - self->t_restante;
@@ -300,11 +313,6 @@ void esc_escalona_proc_prioritario(esc_t *self)
   if (proc_prioritario != NULL) {
     esc_executa_proc(self, proc_id(proc_prioritario));
   }
-}
-
-void esc_tictac(esc_t *self)
-{
-  self->t_restante--;
 }
 
 proc_t *proc_cria(int id, int end)
@@ -346,49 +354,9 @@ proc_estado_t proc_estado(proc_t *self)
   return self->estado;
 }
 
-double proc_prioridade(proc_t *self)
+proc_metricas_t proc_metricas(proc_t *self)
 {
-  return self->prioridade;
-}
-
-void proc_reprioriza(proc_t *self, double t_exec, double t_quantum)
-{
-  self->prioridade = (self->prioridade + t_exec / t_quantum) / 2.0;
-}
-
-void proc_executa(proc_t *self)
-{
-  assert(self->estado == PROC_ESTADO_PRONTO);
-  self->estado = PROC_ESTADO_EXECUTANDO;
-}
-
-void proc_para(proc_t *self)
-{
-  assert(self->estado == PROC_ESTADO_EXECUTANDO);
-  self->estado = PROC_ESTADO_PRONTO;
-}
-
-void proc_bloqueia(proc_t *self, proc_bloq_motivo_t motivo, int arg)
-{
-  assert(
-    (self->estado == PROC_ESTADO_EXECUTANDO) ||
-    (self->estado == PROC_ESTADO_PRONTO)
-  );
-
-  self->estado = PROC_ESTADO_BLOQUEADO;
-  self->bloq_motivo = motivo;
-  self->bloq_arg = arg;
-}
-
-void proc_desbloqueia(proc_t *self)
-{
-  assert(self->estado == PROC_ESTADO_BLOQUEADO);
-  self->estado = PROC_ESTADO_PRONTO;
-}
-
-void proc_encerra(proc_t *self)
-{
-  self->estado = PROC_ESTADO_MORTO;
+  return self->metricas;
 }
 
 int proc_PC(proc_t *self)
@@ -447,7 +415,68 @@ void proc_desatribui_porta(proc_t *self)
   self->porta = -1;
 }
 
-void proc_insere_fila(proc_t *self, proc_t **fila)
+static double proc_prioridade(proc_t *self)
+{
+  return self->prioridade;
+}
+
+static void proc_reprioriza(proc_t *self, double t_exec, double t_quantum)
+{
+  self->prioridade = (self->prioridade + t_exec / t_quantum) / 2.0;
+}
+
+static void proc_executa(proc_t *self)
+{
+  assert(self->estado == PROC_ESTADO_PRONTO);
+  proc_altera_estado(self, PROC_ESTADO_EXECUTANDO);
+}
+
+static void proc_para(proc_t *self)
+{
+  assert(self->estado == PROC_ESTADO_EXECUTANDO);
+  proc_altera_estado(self, PROC_ESTADO_PRONTO);
+}
+
+static void proc_bloqueia(proc_t *self, proc_bloq_motivo_t motivo, int arg)
+{
+  assert(
+    (self->estado == PROC_ESTADO_EXECUTANDO) ||
+    (self->estado == PROC_ESTADO_PRONTO)
+  );
+
+  proc_altera_estado(self, PROC_ESTADO_BLOQUEADO);
+
+  self->bloq_motivo = motivo;
+  self->bloq_arg = arg;
+}
+
+static void proc_desbloqueia(proc_t *self)
+{
+  assert(self->estado == PROC_ESTADO_BLOQUEADO);
+  proc_altera_estado(self, PROC_ESTADO_PRONTO);
+}
+
+static void proc_encerra(proc_t *self)
+{
+  proc_altera_estado(self, PROC_ESTADO_MORTO);
+}
+
+static void proc_altera_estado(proc_t *self, proc_estado_t estado)
+{
+  if (self->estado == PROC_ESTADO_EXECUTANDO && estado == PROC_ESTADO_PRONTO) {
+    self->metricas.n_preempcoes++;
+  }
+
+  int agora = 0;
+
+  self->metricas.estados[self->estado].n_vezes++;
+  self->metricas.estados[self->estado].t_total += agora - self->alterado_em;
+
+  self->estado = estado;
+  self->alterado_em = agora;
+}
+
+static void proc_insere_fila(proc_t *self, proc_t **fila)
 {
   if (*fila == NULL) {
     self->anterior = self;
@@ -464,7 +493,7 @@ void proc_insere_fila(proc_t *self, proc_t **fila)
   }
 }
 
-void proc_remove_fila(proc_t *self, proc_t **fila)
+static void proc_remove_fila(proc_t *self, proc_t **fila)
 {
   if (*fila == NULL)
     return;
@@ -486,10 +515,11 @@ void proc_remove_fila(proc_t *self, proc_t **fila)
   self->anterior = NULL;
 }
 
-void proc_avanca_fila(proc_t **fila)
+static void proc_avanca_fila(proc_t **fila)
 {
-  if (*fila == NULL)
+  if (*fila == NULL) {
     return;
+  }
 
   *fila = (*fila)->proximo;
 }
