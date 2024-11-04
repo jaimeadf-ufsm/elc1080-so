@@ -20,6 +20,9 @@
 // CONSTANTES E TIPOS {{{1
 // intervalo entre interrupções do relógio
 #define INTERVALO_INTERRUPCAO 50   // em instruções executadas
+#define INTERVALO_QUANTUM 10 // em interrupções de relógio
+
+#define TAM_TABELA_PROC 16
 
 struct so_t {
   cpu_t *cpu;
@@ -35,6 +38,9 @@ struct so_t {
   proc_t *proc_corrente;
   proc_t **proc_tabela;
 
+  int t_proc_quantum;
+  int t_proc_restante;
+
   bool erro_interno;
   // t1: tabela de processos, processo corrente, pendências, etc
 };
@@ -44,14 +50,16 @@ struct so_t {
 static int so_trata_interrupcao(void *argC, int reg_A);
 
 // função de gerenciamento de processos
-
-// funções auxiliares
 static proc_t *so_busca_proc(so_t *self, int pid);
 static proc_t *so_gera_proc(so_t *self, char *nome_do_executavel);
 static void so_mata_proc(so_t *self, proc_t *proc);
+static void so_executa_proc(so_t *self, proc_t *proc);
 static void so_bloqueia_proc(so_t *self, proc_t *proc, proc_bloq_motivo_t motivo, int arg);
 static void so_desbloqueia_proc(so_t *self, proc_t *proc);
 static void so_assegura_porta_proc(so_t *self, proc_t *proc);
+static bool so_deve_escalonar_proc(so_t *self);
+
+// funções auxiliares
 // carrega o programa contido no arquivo na memória do processador; retorna end. inicial
 static int so_carrega_programa(so_t *self, char *nome_do_executavel);
 // copia para str da memória do processador, até copiar um 0 (retorna true) ou tam bytes
@@ -68,8 +76,18 @@ so_t *so_cria(cpu_t *cpu, mem_t *mem, es_t *es, console_t *console)
   self->mem = mem;
   self->es = es;
   self->console = console;
-  self->esc = esc_cria(ESC_MODO_SIMPLES);
+  self->esc = esc_cria(ESC_MODO_CIRCULAR);
   self->com = com_cria(es);
+
+  self->proc_tam = TAM_TABELA_PROC;
+  self->proc_qtd = 0;
+
+  self->proc_corrente = NULL;
+  self->proc_tabela = malloc(self->proc_tam * sizeof(proc_t *));
+
+  self->t_proc_quantum = INTERVALO_QUANTUM;
+  self->t_proc_restante = 0;
+
   self->erro_interno = false;
 
   com_registra_porta(self->com, D_TERM_A_TECLADO, D_TERM_A_TECLADO_OK, D_TERM_A_TELA, D_TERM_A_TELA_OK);
@@ -207,7 +225,21 @@ static void so_escalona(so_t *self)
   //   corrente; pode continuar sendo o mesmo de antes ou não
   // t1: na primeira versão, escolhe um processo caso o processo corrente não possa continuar
   //   executando. depois, implementar escalonador melhor
-  self->proc_corrente = esc_proximo(self->esc);
+  if (!so_deve_escalonar_proc(self)) {
+    return;
+  }
+
+  if (self->proc_corrente != NULL) {
+    int t_exec = self->t_proc_quantum - self->t_proc_restante;
+
+    int prioridade = proc_prioridade(self->proc_corrente);
+    prioridade += t_exec / self->t_proc_quantum / 2.0;
+    prioridade /= 2.0;
+
+    proc_define_prioridade(self->proc_corrente, prioridade);
+  }
+
+  so_executa_proc(self, esc_proximo(self->esc));
 }
 
 static int so_despacha(so_t *self)
@@ -390,7 +422,10 @@ static void so_trata_irq_relogio(so_t *self)
   // t1: deveria tratar a interrupção
   //   por exemplo, decrementa o quantum do processo corrente, quando se tem
   //   um escalonador com quantum
-  // TODO: here
+
+  if (self->t_proc_restante > 0) {
+    self->t_proc_restante--;
+  }
 }
 
 // foi gerada uma interrupção para a qual o SO não está preparado
@@ -640,6 +675,24 @@ static void so_mata_proc(so_t *self, proc_t *proc)
   proc_encerra(proc);
 }
 
+static void so_executa_proc(so_t *self, proc_t *proc)
+{
+  if (
+    self->proc_corrente != NULL &&
+    self->proc_corrente != proc &&
+    proc_estado(self->proc_corrente) == PROC_ESTADO_EXECUTANDO
+  ) {
+    proc_para(self->proc_corrente);
+  }
+
+  if (proc != NULL && proc_estado(proc) != PROC_ESTADO_EXECUTANDO) {
+    proc_executa(proc);
+  }
+
+  self->proc_corrente = proc;
+  self->t_proc_restante = self->t_proc_quantum;
+}
+
 static void so_bloqueia_proc(so_t *self, proc_t *proc, proc_bloq_motivo_t motivo, int arg)
 {
   esc_remove_proc(self->esc, proc);
@@ -661,6 +714,23 @@ static void so_assegura_porta_proc(so_t *self, proc_t *proc)
   int porta = com_porta_disponivel(self->com);
   proc_atribui_porta(proc, porta);
   com_reserva_porta(self->com, porta);
+}
+
+static bool so_deve_escalonar_proc(so_t *self)
+{
+  if (self->proc_corrente == NULL) {
+    return true;
+  }
+
+  if (proc_estado(self->proc_corrente) != PROC_ESTADO_EXECUTANDO) {
+    return true;
+  }
+
+  if (self->t_proc_restante <= 0) {
+    return true;
+  }
+
+  return false;
 }
 
 // CARGA DE PROGRAMA {{{1
