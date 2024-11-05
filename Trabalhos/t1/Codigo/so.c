@@ -12,6 +12,7 @@
 
 #include "com.h"
 #include "esc.h"
+#include "tabela.h"
 
 #include <stdlib.h>
 #include <stdbool.h>
@@ -20,9 +21,20 @@
 // CONSTANTES E TIPOS {{{1
 // intervalo entre interrupções do relógio
 #define INTERVALO_INTERRUPCAO 50   // em instruções executadas
-#define INTERVALO_QUANTUM 10 // em interrupções de relógio
+#define INTERVALO_QUANTUM 5 // em interrupções de relógio
 
 #define TAM_TABELA_PROC 16
+
+typedef struct so_metricas_t so_metricas_t;
+
+struct so_metricas_t {
+  int t_exec;
+  int t_ocioso;
+
+  int n_preempcoes;
+
+  int n_irqs[N_IRQ];
+};
 
 struct so_t {
   cpu_t *cpu;
@@ -38,8 +50,12 @@ struct so_t {
   proc_t *proc_corrente;
   proc_t **proc_tabela;
 
-  int t_proc_quantum;
-  int t_proc_restante;
+  int i_proc_quantum;
+  int i_proc_restante;
+
+  int t_relogio_atual;
+
+  so_metricas_t metricas;
 
   bool erro_interno;
   // t1: tabela de processos, processo corrente, pendências, etc
@@ -57,7 +73,12 @@ static void so_executa_proc(so_t *self, proc_t *proc);
 static void so_bloqueia_proc(so_t *self, proc_t *proc, proc_bloq_motivo_t motivo, int arg);
 static void so_desbloqueia_proc(so_t *self, proc_t *proc);
 static void so_assegura_porta_proc(so_t *self, proc_t *proc);
-static bool so_deve_escalonar_proc(so_t *self);
+static bool so_deve_escalonar(so_t *self);
+static bool so_tem_trabalho(so_t *self);
+
+// funções para contabilização de métricas
+static void so_atualiza_metricas(so_t *self, int delta);
+static void so_imprime_metricas(so_t *self);
 
 // funções auxiliares
 // carrega o programa contido no arquivo na memória do processador; retorna end. inicial
@@ -76,7 +97,7 @@ so_t *so_cria(cpu_t *cpu, mem_t *mem, es_t *es, console_t *console)
   self->mem = mem;
   self->es = es;
   self->console = console;
-  self->esc = esc_cria(ESC_MODO_CIRCULAR);
+  self->esc = esc_cria(ESC_MODO_PRIORITARIO);
   self->com = com_cria(es);
 
   self->proc_tam = TAM_TABELA_PROC;
@@ -85,8 +106,19 @@ so_t *so_cria(cpu_t *cpu, mem_t *mem, es_t *es, console_t *console)
   self->proc_corrente = NULL;
   self->proc_tabela = malloc(self->proc_tam * sizeof(proc_t *));
 
-  self->t_proc_quantum = INTERVALO_QUANTUM;
-  self->t_proc_restante = 0;
+  self->i_proc_quantum = INTERVALO_QUANTUM;
+  self->i_proc_restante = 0;
+
+  self->t_relogio_atual = -1;
+
+  self->metricas.t_exec = 0;
+  self->metricas.t_ocioso = 0;
+
+  self->metricas.n_preempcoes = 0;
+
+  for (int i = 0; i < N_IRQ; i++) {
+    self->metricas.n_irqs[i] = 0;
+  }
 
   self->erro_interno = false;
 
@@ -141,6 +173,7 @@ void so_destroi(so_t *self)
 
 // funções auxiliares para o tratamento de interrupção
 static void so_salva_estado_da_cpu(so_t *self);
+static void so_sincroniza(so_t *self);
 static void so_trata_irq(so_t *self, int irq);
 static void so_trata_bloq(so_t *self, proc_t *proc);
 static void so_trata_pendencias(so_t *self);
@@ -165,10 +198,15 @@ static int so_trata_interrupcao(void *argC, int reg_A)
 {
   so_t *self = argC;
   irq_t irq = reg_A;
+
+  self->metricas.n_irqs[irq]++;
+
   // esse print polui bastante, recomendo tirar quando estiver com mais confiança
   console_printf("SO: recebi IRQ %d (%s)", irq, irq_nome(irq));
   // salva o estado da cpu no descritor do processo que foi interrompido
   so_salva_estado_da_cpu(self);
+  // sincroniza o tempo do sistema
+  so_sincroniza(self);
   // faz o atendimento da interrupção
   so_trata_irq(self, irq);
   // faz o processamento independente da interrupção
@@ -202,6 +240,24 @@ static void so_salva_estado_da_cpu(so_t *self)
   proc_define_X(proc, X);
 }
 
+static void so_sincroniza(so_t *self)
+{
+  int t_relogio_anterior = self->t_relogio_atual;
+
+  if (es_le(self->es, D_RELOGIO_INSTRUCOES, &self->t_relogio_atual) != ERR_OK) {
+    console_printf("SO: problema na leitura do relógio");
+    return;
+  }
+
+  if (t_relogio_anterior == -1) {
+    return;
+  }
+
+  int delta = self->t_relogio_atual - t_relogio_anterior;
+
+  so_atualiza_metricas(self, delta);
+}
+
 static void so_trata_pendencias(so_t *self)
 {
   // t1: realiza ações que não são diretamente ligadas com a interrupção que
@@ -225,15 +281,15 @@ static void so_escalona(so_t *self)
   //   corrente; pode continuar sendo o mesmo de antes ou não
   // t1: na primeira versão, escolhe um processo caso o processo corrente não possa continuar
   //   executando. depois, implementar escalonador melhor
-  if (!so_deve_escalonar_proc(self)) {
+  if (!so_deve_escalonar(self)) {
     return;
   }
 
   if (self->proc_corrente != NULL) {
-    int t_exec = self->t_proc_quantum - self->t_proc_restante;
+    int t_exec = self->i_proc_quantum - self->i_proc_restante;
 
     int prioridade = proc_prioridade(self->proc_corrente);
-    prioridade += t_exec / self->t_proc_quantum / 2.0;
+    prioridade += t_exec / self->i_proc_quantum;
     prioridade /= 2.0;
 
     proc_define_prioridade(self->proc_corrente, prioridade);
@@ -411,6 +467,21 @@ static void so_trata_irq_err_cpu(so_t *self)
 // interrupção gerada quando o timer expira
 static void so_trata_irq_relogio(so_t *self)
 {
+  if (!so_tem_trabalho(self)) {
+    err_t e1, e2;
+    e1 = es_escreve(self->es, D_RELOGIO_INTERRUPCAO, 0); // desliga o sinalizador de interrupção
+    e2 = es_escreve(self->es, D_RELOGIO_TIMER, 0);
+
+    if (e1 != ERR_OK || e2 != ERR_OK) {
+      console_printf("SO: problema da reinicialização do timer");
+      self->erro_interno = true;
+    }
+
+    so_imprime_metricas(self);
+
+    return;
+  }
+
   // rearma o interruptor do relógio e reinicializa o timer para a próxima interrupção
   err_t e1, e2;
   e1 = es_escreve(self->es, D_RELOGIO_INTERRUPCAO, 0); // desliga o sinalizador de interrupção
@@ -423,8 +494,8 @@ static void so_trata_irq_relogio(so_t *self)
   //   por exemplo, decrementa o quantum do processo corrente, quando se tem
   //   um escalonador com quantum
 
-  if (self->t_proc_restante > 0) {
-    self->t_proc_restante--;
+  if (self->i_proc_restante > 0) {
+    self->i_proc_restante--;
   }
 }
 
@@ -683,6 +754,7 @@ static void so_executa_proc(so_t *self, proc_t *proc)
     proc_estado(self->proc_corrente) == PROC_ESTADO_EXECUTANDO
   ) {
     proc_para(self->proc_corrente);
+    self->metricas.n_preempcoes++;
   }
 
   if (proc != NULL && proc_estado(proc) != PROC_ESTADO_EXECUTANDO) {
@@ -690,7 +762,7 @@ static void so_executa_proc(so_t *self, proc_t *proc)
   }
 
   self->proc_corrente = proc;
-  self->t_proc_restante = self->t_proc_quantum;
+  self->i_proc_restante = self->i_proc_quantum;
 }
 
 static void so_bloqueia_proc(so_t *self, proc_t *proc, proc_bloq_motivo_t motivo, int arg)
@@ -716,7 +788,7 @@ static void so_assegura_porta_proc(so_t *self, proc_t *proc)
   com_reserva_porta(self->com, porta);
 }
 
-static bool so_deve_escalonar_proc(so_t *self)
+static bool so_deve_escalonar(so_t *self)
 {
   if (self->proc_corrente == NULL) {
     return true;
@@ -726,11 +798,110 @@ static bool so_deve_escalonar_proc(so_t *self)
     return true;
   }
 
-  if (self->t_proc_restante <= 0) {
+  if (self->i_proc_restante <= 0) {
     return true;
   }
 
   return false;
+}
+
+static bool so_tem_trabalho(so_t *self)
+{
+  for (int i = 0; i < self->proc_qtd; i++) {
+    if (proc_estado(self->proc_tabela[i]) != PROC_ESTADO_MORTO) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// MÉTRICAS {{1
+
+static void so_atualiza_metricas(so_t *self, int delta)
+{
+  self->metricas.t_exec += delta;
+  
+  if (self->proc_corrente == NULL) {
+    self->metricas.t_ocioso += delta;
+  }
+
+  for (int i = 0; i < self->proc_qtd; i++) {
+    proc_atualiza_metricas(self->proc_tabela[i], delta);
+  }
+}
+
+static void so_imprime_metricas(so_t *self)
+{
+  const int TAM_CELULA = 256;
+
+  tabela_t *tabela_so = tabela_cria(2, 4, TAM_CELULA);
+  
+  tabela_preenche(tabela_so, 0, 0, "$N_{\\text{Processos}}$");
+  tabela_preenche(tabela_so, 0, 1, "$T_{\\text{Execução}}$");
+  tabela_preenche(tabela_so, 0, 2, "$T_{\\text{Ocioso}}$");
+  tabela_preenche(tabela_so, 0, 3, "$N_{\\text{Preempções}}$");
+  tabela_preenche(tabela_so, 1, 0, "%d", self->proc_qtd);
+  tabela_preenche(tabela_so, 1, 1, "%d", self->metricas.t_exec);
+  tabela_preenche(tabela_so, 1, 2, "%d", self->metricas.t_ocioso);
+  tabela_preenche(tabela_so, 1, 3, "%d", self->metricas.n_preempcoes);
+
+  tabela_t *tabela_irqs = tabela_cria(N_IRQ + 1, 2, TAM_CELULA);
+
+  tabela_preenche(tabela_irqs, 0, 0, "IRQ");
+  tabela_preenche(tabela_irqs, 0, 1, "$N_{\\text{Vezes}}$");
+
+  for (int i = 0; i < N_IRQ; i++) {
+    tabela_preenche(tabela_irqs, i + 1, 0, irq_nome(i));
+    tabela_preenche(tabela_irqs, i + 1, 1, "%d", self->metricas.n_irqs[i]);
+  }
+
+  tabela_t *tabela_proc_geral = tabela_cria(self->proc_qtd + 1, 4, TAM_CELULA);
+  tabela_t *tabela_proc_est_vezes = tabela_cria(self->proc_qtd + 1, PROC_ESTADO_N + 1, TAM_CELULA);
+  tabela_t *tabela_proc_est_tempo = tabela_cria(self->proc_qtd + 1, PROC_ESTADO_N + 1, TAM_CELULA);
+
+  tabela_preenche(tabela_proc_geral, 0, 0, "PID");
+  tabela_preenche(tabela_proc_geral, 0, 1, "$N_{\\text{Preempções}}$");
+  tabela_preenche(tabela_proc_geral, 0, 2, "$T_{\\text{Resposta}}$");
+  tabela_preenche(tabela_proc_geral, 0, 3, "$\\overline{T_{\\text{Retorno}}}$");
+
+  tabela_preenche(tabela_proc_est_vezes, 0, 0, "PID");
+  tabela_preenche(tabela_proc_est_tempo, 0, 0, "PID");
+
+  for (int i = 0; i < PROC_ESTADO_N; i++) {
+    tabela_preenche(tabela_proc_est_vezes, 0, i + 1, "$N_{\\text{%s}}$", proc_estado_nome(i));
+    tabela_preenche(tabela_proc_est_tempo, 0, i + 1, "$T_{\\text{%s}}$", proc_estado_nome(i));
+  }
+
+  for (int i = 0; i < self->proc_qtd; i++) {
+    proc_t *proc = self->proc_tabela[i];
+
+    proc_metricas_t proc_metricas_atual = proc_metricas(self->proc_tabela[i]);
+
+    tabela_preenche(tabela_proc_geral, i + 1, 0, "%d", proc_id(proc));
+    tabela_preenche(tabela_proc_geral, i + 1, 1, "%d", proc_metricas_atual.n_preempcoes);
+    tabela_preenche(tabela_proc_geral, i + 1, 2, "%d", proc_metricas_atual.t_retorno);
+    tabela_preenche(tabela_proc_geral, i + 1, 3, "%d", proc_metricas_atual.t_resposta);
+
+    tabela_preenche(tabela_proc_est_vezes, i + 1, 0, "%d", proc_id(proc));
+    tabela_preenche(tabela_proc_est_tempo, i + 1, 0, "%d", proc_id(proc));
+
+    for (int j = 0; j < PROC_ESTADO_N; j++) {
+      tabela_preenche(tabela_proc_est_vezes, i + 1, j + 1, "%d", proc_metricas_atual.estados[j].n_vezes);
+      tabela_preenche(tabela_proc_est_tempo, i + 1, j + 1, "%d", proc_metricas_atual.estados[j].t_total);
+    }
+  }
+
+  tabela_mostra(tabela_so);
+  tabela_mostra(tabela_irqs);
+  tabela_mostra(tabela_proc_geral);
+  tabela_mostra(tabela_proc_est_vezes);
+  tabela_mostra(tabela_proc_est_tempo);
+
+  tabela_destroi(tabela_so);
+  tabela_destroi(tabela_proc_geral);
+  tabela_destroi(tabela_proc_est_vezes);
+  tabela_destroi(tabela_proc_est_tempo);
 }
 
 // CARGA DE PROGRAMA {{{1

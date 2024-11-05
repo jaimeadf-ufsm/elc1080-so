@@ -41,6 +41,16 @@ proc_t *proc_cria(int id, int end)
   self->reg_A = 0;
   self->reg_X = 0;
 
+  self->metricas.t_retorno = 0;
+  self->metricas.n_preempcoes = 0;
+
+  for (int i = 0; i < PROC_ESTADO_N; i++) {
+    self->metricas.estados[i].n_vezes = 0;
+    self->metricas.estados[i].t_total = 0;
+  }
+
+  self->metricas.estados[PROC_ESTADO_PRONTO].n_vezes = 1;
+
   return self;
 }
 
@@ -95,9 +105,15 @@ void proc_encerra(proc_t *self)
   proc_muda_estado(self, PROC_ESTADO_MORTO);
 }
 
-void proc_atualiza(proc_t *self, int delta_tempo)
+void proc_atualiza_metricas(proc_t *self, int delta)
 {
+  if (self->estado != PROC_ESTADO_MORTO) {
+    self->metricas.t_retorno += delta;
+  }
 
+  self->metricas.estados[self->estado].t_total += delta;
+  self->metricas.t_resposta = self->metricas.estados[PROC_ESTADO_PRONTO].t_total;
+  self->metricas.t_resposta /= self->metricas.estados[PROC_ESTADO_PRONTO].n_vezes;
 }
 
 double proc_prioridade(proc_t *self)
@@ -171,12 +187,28 @@ proc_metricas_t proc_metricas(proc_t *self)
   return self->metricas;
 }
 
+char *proc_estado_nome(proc_estado_t estado)
+{
+  switch (estado) {
+    case PROC_ESTADO_PRONTO:
+      return "Pronto";
+    case PROC_ESTADO_EXECUTANDO:
+      return "Executando";
+    case PROC_ESTADO_BLOQUEADO:
+      return "Bloqueado";
+    case PROC_ESTADO_MORTO:
+      return "Morto";
+    default:
+      return "Desconhecido";
+  }
+}
+
 static void proc_muda_estado(proc_t *self, proc_estado_t estado)
 {
   if (self->estado == PROC_ESTADO_EXECUTANDO && estado == PROC_ESTADO_PRONTO) {
     self->metricas.n_preempcoes++;
   }
 
-  self->metricas.estados[self->estado].n_vezes++;
+  self->metricas.estados[estado].n_vezes++;
   self->estado = estado;
 }

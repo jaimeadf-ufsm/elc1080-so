@@ -29,6 +29,10 @@ struct proc_estado_metricas_t
 struct proc_metricas_t
 {
     int n_preempcoes;
+    
+    int t_retorno;
+    int t_resposta;
+
     proc_estado_metricas_t estados[PROC_ESTADO_N];
 };
 
@@ -44,7 +48,7 @@ void proc_bloqueia(proc_t *self, proc_bloq_motivo_t motivo, int arg);
 void proc_desbloqueia(proc_t *self);
 void proc_encerra(proc_t *self);
 
-void proc_atualiza(proc_t *self, int delta_tempo);
+void proc_atualiza_metricas(proc_t *self, int delta);
 
 double proc_prioridade(proc_t *self);
 void proc_define_prioridade(proc_t *self, double prioridade);
@@ -65,5 +69,7 @@ void proc_define_A(proc_t *self, int valor);
 void proc_define_X(proc_t *self, int valor);
 
 proc_metricas_t proc_metricas(proc_t *self);
+
+char *proc_estado_nome(proc_estado_t estado);
 
 #endif
