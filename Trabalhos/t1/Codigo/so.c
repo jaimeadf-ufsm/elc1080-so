@@ -288,7 +288,7 @@ static void so_escalona(so_t *self)
   if (self->proc_corrente != NULL) {
     int t_exec = self->i_proc_quantum - self->i_proc_restante;
 
-    int prioridade = proc_prioridade(self->proc_corrente);
+    double prioridade = proc_prioridade(self->proc_corrente);
     prioridade += t_exec / self->i_proc_quantum;
     prioridade /= 2.0;
 
