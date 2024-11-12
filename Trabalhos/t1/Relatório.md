@@ -17,7 +17,7 @@ Foram realizados testes para avaliar o desempenho de cada estratégia em diferen
 
 ## Simples
 
-Os testes se iniciaram com o escalonador mais básico, o simples, utilizando a variável configuração de $\text{INTERVALO\_RELOGIO} = 50$. O intervalo de $\text{INTERVALO\_QUANTUM}$ não faz diferença nesse escalonador. Observe que, como esperado, não ocorreu nenhuma preempção, uma vez que cada processo executou até seu bloqueio ou seu encerramento.
+Os testes se iniciaram com o escalonador mais básico, o simples, utilizando a variável configuração de $\text{INTERVALO\textunderscore{}RELOGIO} = 50$. O intervalo de $\text{INTERVALO\textunderscore{}QUANTUM}$ não faz diferença nesse escalonador. Observe que, como esperado, não ocorreu nenhuma preempção, uma vez que cada processo executou até seu bloqueio ou seu encerramento.
 
 | $N_{\text{Processos}}$ | $T_{\text{Execução}}$ | $T_{\text{Ocioso}}$ | $N_{\text{Preempções}}$ | 
 | ---------------------- | ----------------------- | ------------------- | ------------------------- |
@@ -53,7 +53,7 @@ Os testes se iniciaram com o escalonador mais básico, o simples, utilizando a v
 | 3   | 3774                    | 10908               | 1426                   | 11400              |
 | 4   | 5709                    | 12782               | 9009                   | 0                  |
 
-Em seguida, realizei um teste com o $\text{INTERVALO\_RELOGIO} = 40$. Isso porque, durante a execução dos processos, notei que, quando o último processo era bloqueado para escrita, a CPU ficava parada até a próxima interrupção de relógio, embora a tela já estivesse desbloqueada algumas instruções antes. Dessa forma, reduzindo o $\text{INTERVALO\_RELOGIO}$, foi possível fazer com que a CPU reagisse mais rapidamente ao desbloqueio da tela.
+Em seguida, realizei um teste com o $\text{INTERVALO\textunderscore{}RELOGIO} = 40$. Isso porque, durante a execução dos processos, notei que, quando o último processo era bloqueado para escrita, a CPU ficava parada até a próxima interrupção de relógio, embora a tela já estivesse desbloqueada algumas instruções antes. Dessa forma, reduzindo o $\text{INTERVALO\textunderscore{}RELOGIO}$, foi possível fazer com que a CPU reagisse mais rapidamente ao desbloqueio da tela.
 
 | $N_{\text{Processos}}$ | $T_{\text{Execução}}$ | $T_{\text{Ocioso}}$ | $N_{\text{Preempções}}$ | 
 | ---------------------- | ----------------------- | ------------------- | ------------------------- |
@@ -93,7 +93,7 @@ Vale destacar que, embora a CPU executasse o SO mais frequentemente, essa aborda
 
 ## Circular
 
-O escalanador Round-Robin foi executado com $\text{INTERVALO\_RELOGIO} = 50$ e $\text{INTERVALO\_QUANTUM} = 5$. Veja que o tempo de execução foi similar ao do escalandor simples, mas todos os processos puderem ser executados de forma simultânea, garantindo a responsividade do sistema.
+O escalanador Round-Robin foi executado com $\text{INTERVALO\textunderscore{}RELOGIO} = 50$ e $\text{INTERVALO\textunderscore{}QUANTUM} = 5$. Veja que o tempo de execução foi similar ao do escalandor simples, mas todos os processos puderem ser executados de forma simultânea, garantindo a responsividade do sistema.
 
 | $N_{\text{Processos}}$ | $T_{\text{Execução}}$ | $T_{\text{Ocioso}}$ | $N_{\text{Preempções}}$ | 
 | ---------------------- | ----------------------- | ------------------- | ------------------------- |
@@ -129,9 +129,9 @@ O escalanador Round-Robin foi executado com $\text{INTERVALO\_RELOGIO} = 50$ e $
 | 3   | 3765                    | 9697                | 1024                   | 11327              |
 | 4   | 5718                    | 11988               | 8099                   | 0                  |
 
-## Prioritário ($INTERVALO_RELOGIO = 50$ e $INTERVALO_QUANTUM = 5$)
+## Prioritário
 
-O escalonador prioriotário apresentou os melhores resultados e, em virtude disso, será a estratégia em que mais cenários serão analisados. Primeiramente, configrou-se as variáveis $\text{INTERVALO\_RELOGIO} = 50$ e $\text{INTERVALO\_QUANTUM} = 5$.
+O escalonador prioriotário apresentou os melhores resultados e, em virtude disso, será a estratégia em que mais cenários serão analisados. Primeiramente, configrou-se as variáveis $\text{INTERVALO\textunderscore{}RELOGIO} = 50$ e $\text{INTERVALO\textunderscore{}QUANTUM} = 5$.
 
 | $N_{\text{Processos}}$ | $T_{\text{Execução}}$ | $T_{\text{Ocioso}}$ | $N_{\text{Preempções}}$ | 
 | ---------------------- | ----------------------- | ------------------- | ------------------------- |
@@ -167,7 +167,7 @@ O escalonador prioriotário apresentou os melhores resultados e, em virtude diss
 | 3   | 3792                    | 6548                | 1111                   | 10955              |
 | 4   | 5712                    | 10555               | 6131                   | 0                  |
 
-Em seguida, realizou-se um teste, reduzindo o número de instruções a cada interrupção de relógio e aumentando o número de interrupções para o tempo de quantum, objetivando a equiparação com o testes anteriores. Desse modo, defineu as variáveis $\text{INTERVALO\_RELOGIO} = 40$ e $\text{INTERVALO\_QUANTUM} = 6$.
+Em seguida, realizou-se um teste, reduzindo o número de instruções a cada interrupção de relógio e aumentando o número de interrupções para o tempo de quantum, objetivando a equiparação com o testes anteriores. Desse modo, defineu as variáveis $\text{INTERVALO\textunderscore{}RELOGIO} = 40$ e $\text{INTERVALO\textunderscore{}QUANTUM} = 6$.
 
 | $N_{\text{Processos}}$ | $T_{\text{Execução}}$ | $T_{\text{Ocioso}}$ | $N_{\text{Preempções}}$ | 
 | ---------------------- | ----------------------- | ------------------- | ------------------------- |
@@ -203,7 +203,7 @@ Em seguida, realizou-se um teste, reduzindo o número de instruções a cada int
 | 3   | 3867                    | 6461                | 943                    | 9966               |
 | 4   | 5754                    | 9963                | 5512                   | 0                  |
 
-Por fim, reduziu-se também o número de interrupções para o tempo de quantum pela metade, mantendo o mesmo intervalo de relógio. Com isso, o teste foi realizado com $\text{INTERVALO\_RELOGIO} = 40$ e $\text{INTERVALO\_QUANTUM} = 3$.
+Por fim, reduziu-se também o número de interrupções para o tempo de quantum pela metade, mantendo o mesmo intervalo de relógio. Com isso, o teste foi realizado com $\text{INTERVALO\textunderscore{}RELOGIO} = 40$ e $\text{INTERVALO\textunderscore{}QUANTUM} = 3$.
 
 | $N_{\text{Processos}}$ | $T_{\text{Execução}}$ | $T_{\text{Ocioso}}$ | $N_{\text{Preempções}}$ | 
 | ---------------------- | ----------------------- | ------------------- | ------------------------- |
