@@ -13,7 +13,7 @@ Foram implementadas três estratégias distintas de escalonamento, cada uma com 
 
 ## Testes
 
-Foram realizados testes para avaliar o desempenho de cada estratégia em diferentes cenários, variando tanto o intervalo de cada interrupção de relógio quanto o número de interrupções necessário para o quantum de cada processo. As principais métricas coletadas durante os testes incluem o tempo total de execução do sistema, o número de interrupções de cada tipo e o tempo total de cada processo em cada estado. Tais informações foram medidas em termos de número de instruções da CPU. Os resultados obtidos serão apresentados a seguir, oferecendo uma visão clara das diferenças e implicações de cada abordagem.
+Alguns testes foram realizados para avaliar o desempenho de cada estratégia em diferentes cenários, variando tanto o intervalo de cada interrupção de relógio quanto o número de interrupções necessário para o quantum de cada processo. As principais métricas coletadas durante os testes incluem o tempo total de execução do sistema, o número de interrupções de cada tipo e o tempo total de cada processo em cada estado. Tais informações foram medidas em termos de número de instruções da CPU. Os resultados obtidos serão apresentados a seguir, oferecendo uma visão clara das diferenças e implicações de cada abordagem.
 
 ## Simples
 
@@ -93,7 +93,7 @@ Vale destacar que, embora a CPU executasse o SO mais frequentemente, essa aborda
 
 ## Circular
 
-O escalanador Round-Robin foi executado com INTERVALO_RELOGIO = 50 e INTERVALO_QUANTUM = 5. Veja que o tempo de execução foi similar ao do escalandor simples, mas todos os processos puderem ser executados de forma simultânea, garantindo a responsividade do sistema.
+O escalonador Round-Robin foi executado com INTERVALO_RELOGIO = 50 e INTERVALO_QUANTUM = 5. Veja que o tempo de execução foi similar ao do escalonsddor simples, mas todos os processos puderam ser executados de forma simultânea, garantindo a responsividade do sistema.
 
 | $N_{\text{Processos}}$ | $T_{\text{Execução}}$ | $T_{\text{Ocioso}}$ | $N_{\text{Preempções}}$ | 
 | ---------------------- | ----------------------- | ------------------- | ------------------------- |
@@ -131,7 +131,7 @@ O escalanador Round-Robin foi executado com INTERVALO_RELOGIO = 50 e INTERVALO_Q
 
 ## Prioritário
 
-O escalonador prioriotário apresentou os melhores resultados e, em virtude disso, será a estratégia em que mais cenários serão analisados. Primeiramente, configrou-se as variáveis INTERVALO_RELOGIO = 50 e INTERVALO_QUANTUM = 5.
+O escalonador prioriotário apresentou os melhores resultados e, em virtude disso, será a estratégia em que mais cenários serão analisados. Primeiramente, configurou-se as variáveis INTERVALO_RELOGIO = 50 e INTERVALO_QUANTUM = 5, seguindo o padrão dos cenários anteriores.
 
 | $N_{\text{Processos}}$ | $T_{\text{Execução}}$ | $T_{\text{Ocioso}}$ | $N_{\text{Preempções}}$ | 
 | ---------------------- | ----------------------- | ------------------- | ------------------------- |
@@ -167,7 +167,7 @@ O escalonador prioriotário apresentou os melhores resultados e, em virtude diss
 | 3   | 3792                    | 6548                | 1111                   | 10955              |
 | 4   | 5712                    | 10555               | 6131                   | 0                  |
 
-Em seguida, realizou-se um teste, reduzindo o número de instruções a cada interrupção de relógio e aumentando o número de interrupções para o tempo de quantum, objetivando a equiparação com o testes anteriores. Desse modo, defineu as variáveis INTERVALO_RELOGIO = 40 e INTERVALO_QUANTUM = 6.
+Em seguida, realizou-se um teste, reduzindo o número de instruções a cada interrupção de relógio e aumentando proporcionalmente o número de interrupções para o tempo de quantum, objetivando a equiparação com o testes anteriores. Desse modo, defineu as variáveis INTERVALO_RELOGIO = 40 e INTERVALO_QUANTUM = 6.
 
 | $N_{\text{Processos}}$ | $T_{\text{Execução}}$ | $T_{\text{Ocioso}}$ | $N_{\text{Preempções}}$ | 
 | ---------------------- | ----------------------- | ------------------- | ------------------------- |
@@ -238,3 +238,5 @@ Por fim, reduziu-se também o número de interrupções para o tempo de quantum 
 | 2   | 9441                    | 9905                | 494                    | 0                  |
 | 3   | 3870                    | 5775                | 946                    | 9241               |
 | 4   | 5745                    | 6400                | 5719                   | 1960               |
+
+Essa última abordagem, embora tenha obtido o menor tempo de execução entre todos os cenários analisados, obteve também o maior o número de preempções. Isso pode degradar o desempenho em processadores modernos, visto que, uma preempção, significa limpar todos os estágios do pipeline. Portanto, vale ressaltar que cada abordagem apresenta suas vantagens e suas desvantagens e, para alcançar o melhor desempenho, o hardware e a composição dos processos também deve ser analisados minuciosamente.
