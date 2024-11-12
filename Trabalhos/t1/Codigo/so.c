@@ -205,7 +205,7 @@ static int so_trata_interrupcao(void *argC, int reg_A)
   self->metricas.n_irqs[irq]++;
 
   // esse print polui bastante, recomendo tirar quando estiver com mais confiança
-  console_printf("SO: recebi IRQ %d (%s)", irq, irq_nome(irq));
+  // console_printf("SO: recebi IRQ %d (%s)", irq, irq_nome(irq));
   // salva o estado da cpu no descritor do processo que foi interrompido
   so_salva_estado_da_cpu(self);
   // sincroniza o tempo do sistema
@@ -298,13 +298,28 @@ static void so_escalona(so_t *self)
     int t_exec = self->i_proc_quantum - self->i_proc_restante;
 
     double prioridade = proc_prioridade(self->proc_corrente);
-    prioridade += t_exec / self->i_proc_quantum;
+    prioridade += (double)t_exec / self->i_proc_quantum;
     prioridade /= 2.0;
+
+    console_printf(
+      "SO: processo %d - atualiza prioridade %lf -> %lf",
+      proc_id(self->proc_corrente),
+      proc_prioridade(self->proc_corrente),
+      prioridade
+    );
 
     proc_define_prioridade(self->proc_corrente, prioridade);
   }
 
-  so_executa_proc(self, esc_proximo(self->esc));
+  proc_t *proc = esc_proximo(self->esc);
+
+  if (proc != NULL) {
+    console_printf("SO: escalona processo %d", proc_id(proc));
+  } else {
+    console_printf("SO: nenhum processo para escalonar");
+  }
+
+  so_executa_proc(self, proc);
 }
 
 static int so_despacha(so_t *self)
@@ -384,6 +399,8 @@ static void so_trata_bloq_leitura(so_t *self, proc_t *proc)
   if (porta != -1 && com_le_porta(self->com, porta, &dado)) {
     proc_define_A(proc, dado);
     so_desbloqueia_proc(self, proc);
+
+    console_printf("SO: processo %d - desbloqueia de leitura", proc_id(proc));
   }
 }
 
@@ -397,6 +414,8 @@ static void so_trata_bloq_escrita(so_t *self, proc_t *proc)
   if (porta != -1 && com_escreve_porta(self->com, porta, dado)) {
     proc_define_A(proc, 0);
     so_desbloqueia_proc(self, proc);
+
+    console_printf("SO: processo %d - desbloqueia de escrita", proc_id(proc));
   }
 }
 
@@ -408,6 +427,11 @@ static void so_trata_bloq_espera_proc(so_t *self, proc_t *proc)
   if (proc_alvo == NULL || proc_estado(proc_alvo) == PROC_ESTADO_MORTO) {
     proc_define_A(proc, 0);
     so_desbloqueia_proc(self, proc);
+
+    console_printf(
+      "SO: processo %d - desbloqueia de espera de processo",
+      proc_id(proc)
+    );
   }
 }
 
@@ -504,6 +528,8 @@ static void so_trata_irq_relogio(so_t *self)
   //   por exemplo, decrementa o quantum do processo corrente, quando se tem
   //   um escalonador com quantum
 
+  console_printf("SO: interrupção do relógio");
+
   if (self->i_proc_restante > 0) {
     self->i_proc_restante--;
   }
@@ -535,7 +561,7 @@ static void so_trata_irq_chamada_sistema(so_t *self)
     self->erro_interno = true;
     return;
   }
-  console_printf("SO: chamada de sistema %d", id_chamada);
+  // console_printf("SO: chamada de sistema %d", id_chamada);
   switch (id_chamada) {
     case SO_LE:
       so_chamada_le(self);
@@ -591,6 +617,7 @@ static void so_chamada_le(so_t *self)
   if (porta != -1 && com_le_porta(self->com, porta, &dado)) {
     proc_define_A(proc, dado);
   } else {
+    console_printf("SO: processo %d - bloqueia para leitura", proc_id(proc));
     so_bloqueia_proc(self, proc, PROC_BLOQ_LEITURA, 0);
   }
 }
@@ -621,6 +648,7 @@ static void so_chamada_escr(so_t *self)
   if (porta != -1 && com_escreve_porta(self->com, porta, dado)) {
     proc_define_A(proc, 0);
   } else {
+    console_printf("SO: processo %d - bloqueia para escrita", proc_id(proc));
     so_bloqueia_proc(self, proc, PROC_BLOQ_ESCRITA, dado);
   }
 }
@@ -644,6 +672,12 @@ static void so_chamada_cria_proc(so_t *self)
   char nome[100];
 
   if (copia_str_da_mem(100, nome, self->mem, ender_proc)) {
+    console_printf(
+      "SO: processo %d - cria processo (nome: %s)",
+      proc_id(self->proc_corrente),
+      nome
+    );
+
     proc_t *proc_alvo = so_gera_proc(self, nome);
 
     if (proc_alvo != NULL) {
@@ -667,10 +701,17 @@ static void so_chamada_mata_proc(so_t *self)
     return;
   }
 
+
   // T1: deveria matar um processo
   // ainda sem suporte a processos, retorna erro -1
   int pid_alvo = proc_X(proc);
   proc_t *proc_alvo = so_busca_proc(self, pid_alvo);
+
+  console_printf(
+    "SO: processo %d - mata processo (PID: %d)",
+    proc_id(self->proc_corrente),
+    pid_alvo
+  );
 
   if (pid_alvo == 0) {
     proc_alvo = self->proc_corrente;
@@ -696,8 +737,14 @@ static void so_chamada_espera_proc(so_t *self)
 
   // T1: deveria bloquear o processo se for o caso (e desbloquear na morte do esperado)
   // ainda sem suporte a processos, retorna erro -1
-  int pid_alvo = proc_bloq_arg(proc);
+  int pid_alvo = proc_X(proc);
   proc_t *proc_alvo = so_busca_proc(self, pid_alvo);
+
+  console_printf(
+    "SO: processo %d - espera processo (PID: %d)",
+    proc_id(self->proc_corrente),
+    pid_alvo
+  );
 
   if (proc_alvo == NULL || proc_alvo == proc) {
     proc_define_A(proc, -1);
@@ -707,6 +754,11 @@ static void so_chamada_espera_proc(so_t *self)
   if (proc_estado(proc_alvo) == PROC_ESTADO_MORTO) {
     proc_define_A(proc, 0);
   } else {
+    console_printf(
+    "SO: processo %d - bloqueia para espera de processo",
+     proc_id(proc)
+    );
+
     so_bloqueia_proc(self, proc, PROC_BLOQ_ESPERA_PROC, pid_alvo);
   }
 }
