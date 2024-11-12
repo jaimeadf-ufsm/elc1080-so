@@ -44,7 +44,7 @@ proc_t *proc_cria(int id, int end)
   self->metricas.t_retorno = 0;
   self->metricas.n_preempcoes = 0;
 
-  for (int i = 0; i < PROC_ESTADO_N; i++) {
+  for (int i = 0; i < N_PROC_ESTADO; i++) {
     self->metricas.estados[i].n_vezes = 0;
     self->metricas.estados[i].t_total = 0;
   }

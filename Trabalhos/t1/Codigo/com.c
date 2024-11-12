@@ -23,6 +23,7 @@ struct com_t
 
 	int tam;
 	int qtd;
+	int ini;
 
 	porta_t *portas;
 };
@@ -36,6 +37,7 @@ com_t *com_cria(es_t *es)
 
 	self->tam = TAM_PORTAS_INICIAL;
 	self->qtd = 0;
+	self->ini = 0;
 
 	self->portas = (porta_t *)malloc(sizeof(porta_t) * self->tam);
 	assert(self->portas != NULL);
@@ -51,8 +53,7 @@ void com_destroi(com_t *self)
 
 int com_registra_porta(com_t *self, dispositivo_id_t leitura, dispositivo_id_t leitura_ok, dispositivo_id_t escrita, dispositivo_id_t escrita_ok)
 {
-	if (self->qtd == self->tam)
-	{
+	if (self->qtd == self->tam) {
 		self->tam *= 2;
 		self->portas = (porta_t *)realloc(self->portas, sizeof(porta_t) * self->tam);
 		assert(self->portas != NULL);
@@ -74,11 +75,13 @@ bool com_le_porta(com_t *self, int id, int *pvalor)
 
 	assert(id < self->qtd);
 
-	if (es_le(self->es, self->portas[id].leitura_ok, &ok) != ERR_OK)
+	if (es_le(self->es, self->portas[id].leitura_ok, &ok) != ERR_OK) {
 		return false;
+	}
 
-	if (!ok)
+	if (!ok) {
 		return false;
+	}
 
 	return es_le(self->es, self->portas[id].leitura, pvalor) == ERR_OK;
 }
@@ -89,11 +92,13 @@ bool com_escreve_porta(com_t *self, int id, int valor)
 
 	assert(id < self->qtd);
 
-	if (es_le(self->es, self->portas[id].escrita_ok, &ok) != ERR_OK)
+	if (es_le(self->es, self->portas[id].escrita_ok, &ok) != ERR_OK) {
 		return false;
+	}
 
-	if (!ok)
+	if (!ok) {
 		return false;
+	}
 
 	return es_escreve(self->es, self->portas[id].escrita, valor) == ERR_OK;
 }
@@ -112,10 +117,11 @@ void com_libera_porta(com_t *self, int id)
 
 int com_porta_disponivel(com_t *self)
 {
-	for (int i = 0; i < self->qtd; i++)
-	{
-		if (!self->portas[i].reservada)
-		{
+	for (int j = 0; j < self->qtd; j++) {
+		int i = (self->ini + j) % self->qtd;
+
+		if (!self->portas[i].reservada) {
+			self->ini = (i + 1) % self->qtd;
 			return i;
 		}
 	}

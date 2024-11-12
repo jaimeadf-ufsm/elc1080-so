@@ -6,14 +6,14 @@ typedef enum {
     PROC_ESTADO_PRONTO,
     PROC_ESTADO_BLOQUEADO,
     PROC_ESTADO_MORTO,
-    PROC_ESTADO_N
+    N_PROC_ESTADO
 } proc_estado_t;
 
 typedef enum {
     PROC_BLOQ_LEITURA,
     PROC_BLOQ_ESCRITA,
     PROC_BLOQ_ESPERA_PROC,
-    PROC_BLOQ_N
+    N_PROC_BLOQ
 } proc_bloq_motivo_t;
 
 typedef struct proc_t proc_t;
@@ -33,7 +33,7 @@ struct proc_metricas_t
     int t_retorno;
     int t_resposta;
 
-    proc_estado_metricas_t estados[PROC_ESTADO_N];
+    proc_estado_metricas_t estados[N_PROC_ESTADO];
 };
 
 proc_t *proc_cria(int id, int end);

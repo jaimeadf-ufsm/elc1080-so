@@ -25,6 +25,8 @@
 
 #define TAM_TABELA_PROC 16
 
+#define ESC_MODO ESC_MODO_SIMPLES
+
 typedef struct so_metricas_t so_metricas_t;
 
 struct so_metricas_t {
@@ -97,7 +99,7 @@ so_t *so_cria(cpu_t *cpu, mem_t *mem, es_t *es, console_t *console)
   self->mem = mem;
   self->es = es;
   self->console = console;
-  self->esc = esc_cria(ESC_MODO_PRIORITARIO);
+  self->esc = esc_cria(ESC_MODO);
   self->com = com_cria(es);
 
   self->proc_tam = TAM_TABELA_PROC;
@@ -179,6 +181,7 @@ static void so_trata_bloq(so_t *self, proc_t *proc);
 static void so_trata_pendencias(so_t *self);
 static void so_escalona(so_t *self);
 static int so_despacha(so_t *self);
+static int so_desliga(so_t *self);
 
 // função a ser chamada pela CPU quando executa a instrução CHAMAC, no tratador de
 //   interrupção em assembly
@@ -213,8 +216,14 @@ static int so_trata_interrupcao(void *argC, int reg_A)
   so_trata_pendencias(self);
   // escolhe o próximo processo a executar
   so_escalona(self);
-  // recupera o estado do processo escolhido
-  return so_despacha(self);
+
+  if (so_tem_trabalho(self)) {
+    // recupera o estado do processo escolhido
+    return so_despacha(self);
+  } else {
+    // para de executar o SO, desabilitando as interrupções de relógio
+    return so_desliga(self);
+  }
 }
 
 static void so_salva_estado_da_cpu(so_t *self)
@@ -320,6 +329,22 @@ static int so_despacha(so_t *self)
   mem_escreve(self->mem, IRQ_END_X, X);
 
   return 0;
+}
+
+static int so_desliga(so_t *self)
+{
+  err_t e1, e2;
+  e1 = es_escreve(self->es, D_RELOGIO_INTERRUPCAO, 0);
+  e2 = es_escreve(self->es, D_RELOGIO_TIMER, 0);
+
+  if (e1 != ERR_OK || e2 != ERR_OK) {
+    console_printf("SO: problema de desarme do timer");
+    self->erro_interno = true;
+  }
+
+  so_imprime_metricas(self);
+
+  return 1;
 }
 
 // TRATAMENTO DE UM BLOQUEIO {{{1
@@ -467,21 +492,6 @@ static void so_trata_irq_err_cpu(so_t *self)
 // interrupção gerada quando o timer expira
 static void so_trata_irq_relogio(so_t *self)
 {
-  if (!so_tem_trabalho(self)) {
-    err_t e1, e2;
-    e1 = es_escreve(self->es, D_RELOGIO_INTERRUPCAO, 0); // desliga o sinalizador de interrupção
-    e2 = es_escreve(self->es, D_RELOGIO_TIMER, 0);
-
-    if (e1 != ERR_OK || e2 != ERR_OK) {
-      console_printf("SO: problema da reinicialização do timer");
-      self->erro_interno = true;
-    }
-
-    so_imprime_metricas(self);
-
-    return;
-  }
-
   // rearma o interruptor do relógio e reinicializa o timer para a próxima interrupção
   err_t e1, e2;
   e1 = es_escreve(self->es, D_RELOGIO_INTERRUPCAO, 0); // desliga o sinalizador de interrupção
@@ -857,8 +867,8 @@ static void so_imprime_metricas(so_t *self)
   }
 
   tabela_t *tabela_proc_geral = tabela_cria(self->proc_qtd + 1, 4, TAM_CELULA);
-  tabela_t *tabela_proc_est_vezes = tabela_cria(self->proc_qtd + 1, PROC_ESTADO_N + 1, TAM_CELULA);
-  tabela_t *tabela_proc_est_tempo = tabela_cria(self->proc_qtd + 1, PROC_ESTADO_N + 1, TAM_CELULA);
+  tabela_t *tabela_proc_est_vezes = tabela_cria(self->proc_qtd + 1, N_PROC_ESTADO + 1, TAM_CELULA);
+  tabela_t *tabela_proc_est_tempo = tabela_cria(self->proc_qtd + 1, N_PROC_ESTADO + 1, TAM_CELULA);
 
   tabela_preenche(tabela_proc_geral, 0, 0, "PID");
   tabela_preenche(tabela_proc_geral, 0, 1, "$N_{\\text{Preempções}}$");
@@ -868,7 +878,7 @@ static void so_imprime_metricas(so_t *self)
   tabela_preenche(tabela_proc_est_vezes, 0, 0, "PID");
   tabela_preenche(tabela_proc_est_tempo, 0, 0, "PID");
 
-  for (int i = 0; i < PROC_ESTADO_N; i++) {
+  for (int i = 0; i < N_PROC_ESTADO; i++) {
     tabela_preenche(tabela_proc_est_vezes, 0, i + 1, "$N_{\\text{%s}}$", proc_estado_nome(i));
     tabela_preenche(tabela_proc_est_tempo, 0, i + 1, "$T_{\\text{%s}}$", proc_estado_nome(i));
   }
@@ -886,7 +896,7 @@ static void so_imprime_metricas(so_t *self)
     tabela_preenche(tabela_proc_est_vezes, i + 1, 0, "%d", proc_id(proc));
     tabela_preenche(tabela_proc_est_tempo, i + 1, 0, "%d", proc_id(proc));
 
-    for (int j = 0; j < PROC_ESTADO_N; j++) {
+    for (int j = 0; j < N_PROC_ESTADO; j++) {
       tabela_preenche(tabela_proc_est_vezes, i + 1, j + 1, "%d", proc_metricas_atual.estados[j].n_vezes);
       tabela_preenche(tabela_proc_est_tempo, i + 1, j + 1, "%d", proc_metricas_atual.estados[j].t_total);
     }
