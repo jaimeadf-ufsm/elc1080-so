@@ -311,6 +311,13 @@ static void so_escalona(so_t *self)
     proc_define_prioridade(self->proc_corrente, prioridade);
   }
 
+  if (
+    self->proc_corrente != NULL &&
+    proc_estado(self->proc_corrente) == PROC_ESTADO_EXECUTANDO
+  ) {
+    esc_insere_proc(self->esc, self->proc_corrente);
+  }
+
   proc_t *proc = esc_proximo(self->esc);
 
   if (proc != NULL) {
@@ -821,6 +828,10 @@ static void so_executa_proc(so_t *self, proc_t *proc)
 
   if (proc != NULL && proc_estado(proc) != PROC_ESTADO_EXECUTANDO) {
     proc_executa(proc);
+  }
+
+  if (proc != NULL) {
+    esc_remove_proc(self->esc, proc);
   }
 
   self->proc_corrente = proc;

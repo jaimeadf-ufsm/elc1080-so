@@ -8,14 +8,16 @@ typedef struct esc_no_t esc_no_t;
 struct esc_no_t {
   proc_t *proc;
 
-  esc_no_t *prox;
   esc_no_t *ant;
+  esc_no_t *prox;
 };
 
 struct esc_t
 {
   esc_modo_t modo;
-  esc_no_t *fila;
+
+  esc_no_t *inicio;
+  esc_no_t *fim;
 };
 
 static proc_t *esc_proximo_modo_simples(esc_t *self);
@@ -28,22 +30,18 @@ esc_t *esc_cria(esc_modo_t modo)
   assert(self != NULL);
 
   self->modo = modo;
-  self->fila = NULL;
+  self->inicio = NULL;
+  self->fim = NULL;
 
   return self;
 }
 
 void esc_destroi(esc_t *self)
 {
-  if (self->fila != NULL) {
-    esc_no_t *no = self->fila;
-
-    do
-    {
-      esc_no_t *prox = no->prox;
-      free(no);
-      no = prox;
-    } while (no != self->fila);
+  while (self->inicio != NULL) {
+    esc_no_t *prox = self->inicio->prox;
+    free(self->inicio);
+    self->inicio = prox;
   }
 
   free(self);
@@ -55,53 +53,41 @@ void esc_insere_proc(esc_t *self, proc_t *proc)
   assert(no != NULL);
 
   no->proc = proc;
+  no->ant = self->fim;
+  no->prox = NULL;
 
-  if (self->fila == NULL) {
-    no->prox = no;
-    no->ant = no;
-    self->fila = no;
+  if (self->fim == NULL) {
+    self->inicio = no;
   } else {
-    no->prox = self->fila;
-    no->ant = self->fila->ant;
-
-    self->fila->ant->prox = no;
-    self->fila->ant = no;
+    self->fim->prox = no;
   }
+
+  self->fim = no;
 }
 
 void esc_remove_proc(esc_t *self, proc_t *proc)
 {
-  if (self->fila == NULL) {
-    return;
-  }
-
-  esc_no_t *no = self->fila;
-
-  do
-  {
-    if (no->proc == proc)
-    {
-      if (no->prox == no)
-      {
-        self->fila = NULL;
-      }
-      else
-      {
-        no->prox->ant = no->ant;
-        no->ant->prox = no->prox;
-
-        if (self->fila == no)
-        {
-          self->fila = no->prox;
-        }
-      }
-
-      free(no);
-      return;
+  for (esc_no_t *no = self->inicio; no != NULL; no = no->prox) {
+    if (no->proc != proc) {
+      continue;
     }
 
-    no = no->prox;
-  } while (no != self->fila);
+    if (no->ant != NULL) {
+      no->ant->prox = no->prox;
+    } else {
+      self->inicio = no->prox;
+    }
+
+    if (no->prox != NULL) {
+      no->prox->ant = no->ant;
+    } else {
+      self->fim = no->ant;
+    }
+
+    free(no);
+
+    break;
+  }
 }
 
 proc_t *esc_proximo(esc_t *self)
@@ -121,39 +107,41 @@ proc_t *esc_proximo(esc_t *self)
 
 static proc_t *esc_proximo_modo_simples(esc_t *self)
 {
-  if (self->fila == NULL) {
+  if (self->inicio == NULL) {
     return NULL;
   }
 
-  return self->fila->proc;
+  for (esc_no_t *no = self->inicio; no != NULL; no = no->prox) {
+    if (proc_estado(no->proc) == PROC_ESTADO_EXECUTANDO) {
+      return no->proc;
+    }
+  }
+
+  return self->inicio->proc;
 }
 
 static proc_t *esc_proximo_modo_circular(esc_t *self)
 {
-  if (self->fila == NULL) {
+  if (self->inicio == NULL) {
     return NULL;
   }
 
-  esc_no_t *no = self->fila;
-
-  self->fila = no->prox;
-
-  return no->proc;
+  return self->inicio->proc;
 }
 
 static proc_t *esc_proximo_modo_prioritario(esc_t *self)
 {
-  if (self->fila == NULL) {
+  if (self->inicio == NULL) {
     return NULL;
   }
 
-  proc_t *melhor = self->fila->proc;
+  proc_t *candidato = self->inicio->proc;
 
-  for (esc_no_t *no = self->fila->prox; no != self->fila; no = no->prox) {
-    if (proc_prioridade(no->proc) < proc_prioridade(melhor)) {
-      melhor = no->proc;
+  for (esc_no_t *no = self->inicio->prox; no != NULL; no = no->prox) {
+    if (proc_prioridade(no->proc) < proc_prioridade(candidato)) {
+      candidato = no->proc;
     }
   }
 
-  return melhor;
+  return candidato;
 }
