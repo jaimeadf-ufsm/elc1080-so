@@ -32,12 +32,12 @@ Os testes se iniciaram com o escalonador mais básico, o simples, utilizando a v
 | E/S: teclado       | 0                  |
 | E/S: console       | 0                  |
 
-| PID | $N_{\text{Preempções}}$ | $T_{\text{Resposta}}$ | $\overline{T_{\text{Retorno}}}$ | 
-| --- | ------------------------- | --------------------- | ------------------------------- |
-| 1   | 0                         | 27885                 | 10                              |
-| 2   | 0                         | 13414                 | 552                             |
-| 3   | 0                         | 15775                 | 503                             |
-| 4   | 0                         | 27167                 | 95                              |
+| PID | $N_{\text{Preempções}}$ | $T_{\text{Retorno}}$ | $T_{\text{Resposta}}$ | 
+| --- | ------------------------- | -------------------- | --------------------- |
+| 1   | 0                         | 27885                | 10                    |
+| 2   | 0                         | 13414                | 552                   |
+| 3   | 0                         | 15775                | 503                   |
+| 4   | 0                         | 27167                | 95                    |
 
 | PID | $N_{\text{Executando}}$ | $N_{\text{Pronto}}$ | $N_{\text{Bloqueado}}$ | $N_{\text{Morto}}$ | 
 | --- | ----------------------- | ------------------- | ---------------------- | ------------------ |
@@ -68,12 +68,12 @@ Em seguida, realizou-se um teste com o INTERVALO_RELOGIO = 40. Isso porque, dura
 | E/S: teclado       | 0                  |
 | E/S: console       | 0                  |
 
-| PID | $N_{\text{Preempções}}$ | $T_{\text{Resposta}}$ | $\overline{T_{\text{Retorno}}}$ | 
-| --- | ------------------------- | --------------------- | ------------------------------- |
-| 1   | 0                         | 25546                 | 0                               |
-| 2   | 0                         | 13646                 | 670                             |
-| 3   | 0                         | 15901                 | 517                             |
-| 4   | 0                         | 24816                 | 96                              |
+| PID | $N_{\text{Preempções}}$ | $T_{\text{Retorno}}$ | $T_{\text{Resposta}}$ | 
+| --- | ------------------------- | -------------------- | --------------------- |
+| 1   | 0                         | 25546                | 0                     |
+| 2   | 0                         | 13646                | 670                   |
+| 3   | 0                         | 15901                | 517                   |
+| 4   | 0                         | 24816                | 96                    |
 
 | PID | $N_{\text{Executando}}$ | $N_{\text{Pronto}}$ | $N_{\text{Bloqueado}}$ | $N_{\text{Morto}}$ | 
 | --- | ----------------------- | ------------------- | ---------------------- | ------------------ |
@@ -108,12 +108,12 @@ O escalonador Round-Robin foi executado com INTERVALO_RELOGIO = 50 e INTERVALO_Q
 | E/S: teclado       | 0                  |
 | E/S: console       | 0                  |
 
-| PID | $N_{\text{Preempções}}$ | $T_{\text{Resposta}}$ | $\overline{T_{\text{Retorno}}}$ | 
-| --- | ------------------------- | --------------------- | ------------------------------- |
-| 1   | 0                         | 24049                 | 0                               |
-| 2   | 39                        | 17097                 | 152                             |
-| 3   | 12                        | 11989                 | 284                             |
-| 4   | 5                         | 23331                 | 96                              |
+| PID | $N_{\text{Preempções}}$ | $T_{\text{Retorno}}$ | $T_{\text{Resposta}}$ | 
+| --- | ------------------------- | -------------------- | --------------------- |
+| 1   | 0                         | 24049                | 0                     |
+| 2   | 39                        | 17097                | 152                   |
+| 3   | 12                        | 11989                | 284                   |
+| 4   | 5                         | 23331                | 96                    |
 
 | PID | $N_{\text{Executando}}$ | $N_{\text{Pronto}}$ | $N_{\text{Bloqueado}}$ | $N_{\text{Morto}}$ | 
 | --- | ----------------------- | ------------------- | ---------------------- | ------------------ |
@@ -146,12 +146,12 @@ O escalonador prioriotário apresentou os melhores resultados e, em virtude diss
 | E/S: teclado       | 0                  |
 | E/S: console       | 0                  |
 
-| PID | $N_{\text{Preempções}}$ | $T_{\text{Resposta}}$ | $\overline{T_{\text{Retorno}}}$ | 
-| --- | ------------------------- | --------------------- | ------------------------------- |
-| 1   | 0                         | 22846                 | 0                               |
-| 2   | 39                        | 17900                 | 169                             |
-| 3   | 13                        | 11130                 | 230                             |
-| 4   | 5                         | 22128                 | 100                             |
+| PID | $N_{\text{Preempções}}$ | $T_{\text{Retorno}}$ | $T_{\text{Resposta}}$ | 
+| --- | ------------------------- | -------------------- | --------------------- |
+| 1   | 0                         | 22846                | 0                     |
+| 2   | 39                        | 17900                | 169                   |
+| 3   | 13                        | 11130                | 230                   |
+| 4   | 5                         | 22128                | 100                   |
 
 | PID | $N_{\text{Executando}}$ | $N_{\text{Pronto}}$ | $N_{\text{Bloqueado}}$ | $N_{\text{Morto}}$ | 
 | --- | ----------------------- | ------------------- | ---------------------- | ------------------ |
@@ -182,12 +182,12 @@ Em seguida, realizou-se um teste, reduzindo o número de instruções a cada int
 | E/S: teclado       | 0                  |
 | E/S: console       | 0                  |
 
-| PID | $N_{\text{Preempções}}$ | $T_{\text{Resposta}}$ | $\overline{T_{\text{Retorno}}}$ | 
-| --- | ------------------------- | --------------------- | ------------------------------- |
-| 1   | 0                         | 21682                 | 0                               |
-| 2   | 43                        | 18288                 | 166                             |
-| 3   | 14                        | 10953                 | 211                             |
-| 4   | 6                         | 20952                 | 98                              |
+| PID | $N_{\text{Preempções}}$ | $T_{\text{Retorno}}$ | $T_{\text{Resposta}}$ | 
+| --- | ------------------------- | -------------------- | --------------------- |
+| 1   | 0                         | 21682                | 0                     |
+| 2   | 43                        | 18288                | 166                   |
+| 3   | 14                        | 10953                | 211                   |
+| 4   | 6                         | 20952                | 98                    |
 
 | PID | $N_{\text{Executando}}$ | $N_{\text{Pronto}}$ | $N_{\text{Bloqueado}}$ | $N_{\text{Morto}}$ | 
 | --- | ----------------------- | ------------------- | ---------------------- | ------------------ |
@@ -218,12 +218,12 @@ Por fim, reduziu-se também o número de interrupções para o tempo de quantum 
 | E/S: teclado       | 0                  |
 | E/S: console       | 0                  |
 
-| PID | $N_{\text{Preempções}}$ | $T_{\text{Resposta}}$ | $\overline{T_{\text{Retorno}}}$ | 
-| --- | ------------------------- | --------------------- | ------------------------------- |
-| 1   | 0                         | 20250                 | 0                               |
-| 2   | 80                        | 19522                 | 107                             |
-| 3   | 29                        | 10092                 | 113                             |
-| 4   | 12                        | 17626                 | 62                              |
+| PID | $N_{\text{Preempções}}$ | $T_{\text{Retorno}}$ | $T_{\text{Resposta}}$ | 
+| --- | ------------------------- | -------------------- | --------------------- |
+| 1   | 0                         | 20250                | 0                     |
+| 2   | 80                        | 19522                | 107                   |
+| 3   | 29                        | 10092                | 113                   |
+| 4   | 12                        | 17626                | 62                    |
 
 | PID | $N_{\text{Executando}}$ | $N_{\text{Pronto}}$ | $N_{\text{Bloqueado}}$ | $N_{\text{Morto}}$ | 
 | --- | ----------------------- | ------------------- | ---------------------- | ------------------ |

@@ -105,17 +105,6 @@ void proc_encerra(proc_t *self)
   proc_muda_estado(self, PROC_ESTADO_MORTO);
 }
 
-void proc_atualiza_metricas(proc_t *self, int delta)
-{
-  if (self->estado != PROC_ESTADO_MORTO) {
-    self->metricas.t_retorno += delta;
-  }
-
-  self->metricas.estados[self->estado].t_total += delta;
-  self->metricas.t_resposta = self->metricas.estados[PROC_ESTADO_PRONTO].t_total;
-  self->metricas.t_resposta /= self->metricas.estados[PROC_ESTADO_PRONTO].n_vezes;
-}
-
 double proc_prioridade(proc_t *self)
 {
   return self->prioridade;
@@ -185,6 +174,17 @@ void proc_desatribui_porta(proc_t *self)
 proc_metricas_t proc_metricas(proc_t *self)
 {
   return self->metricas;
+}
+
+void proc_atualiza_metricas(proc_t *self, int delta)
+{
+  if (self->estado != PROC_ESTADO_MORTO) {
+    self->metricas.t_retorno += delta;
+  }
+
+  self->metricas.estados[self->estado].t_total += delta;
+  self->metricas.t_resposta = self->metricas.estados[PROC_ESTADO_PRONTO].t_total;
+  self->metricas.t_resposta /= self->metricas.estados[PROC_ESTADO_PRONTO].n_vezes;
 }
 
 char *proc_estado_nome(proc_estado_t estado)
