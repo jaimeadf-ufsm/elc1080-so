@@ -935,8 +935,8 @@ static void so_imprime_metricas(so_t *self)
 
   tabela_preenche(tabela_proc_geral, 0, 0, "PID");
   tabela_preenche(tabela_proc_geral, 0, 1, "$N_{\\text{Preempções}}$");
-  tabela_preenche(tabela_proc_geral, 0, 2, "$T_{\\text{Resposta}}$");
-  tabela_preenche(tabela_proc_geral, 0, 3, "$\\overline{T_{\\text{Retorno}}}$");
+  tabela_preenche(tabela_proc_geral, 0, 2, "$T_{\\text{Retorno}}$");
+  tabela_preenche(tabela_proc_geral, 0, 3, "$T_{\\text{Resposta}}$");
 
   tabela_preenche(tabela_proc_est_vezes, 0, 0, "PID");
   tabela_preenche(tabela_proc_est_tempo, 0, 0, "PID");
