@@ -48,6 +48,7 @@ struct so_t {
 
   int proc_tam;
   int proc_qtd;
+  int proc_id;
 
   proc_t *proc_corrente;
   proc_t **proc_tabela;
@@ -104,6 +105,7 @@ so_t *so_cria(cpu_t *cpu, mem_t *mem, es_t *es, console_t *console)
 
   self->proc_tam = TAM_TABELA_PROC;
   self->proc_qtd = 0;
+  self->proc_id = 1;
 
   self->proc_corrente = NULL;
   self->proc_tabela = malloc(self->proc_tam * sizeof(proc_t *));
@@ -773,11 +775,13 @@ static void so_chamada_espera_proc(so_t *self)
 // GERENCIAMENTO DE PROCESSOS{{{1
 static proc_t *so_busca_proc(so_t *self, int pid)
 {
-  if (pid <= 0 || pid > self->proc_qtd) {
-    return NULL;
+  for (int i = 0; i < self->proc_qtd; i++) {
+    if (proc_id(self->proc_tabela[i]) == pid) {
+      return self->proc_tabela[i];
+    }
   }
 
-  return self->proc_tabela[pid - 1];
+  return NULL;
 }
 
 static proc_t *so_gera_proc(so_t *self, char *nome_do_executavel)
@@ -794,7 +798,7 @@ static proc_t *so_gera_proc(so_t *self, char *nome_do_executavel)
     assert(self->proc_tabela != NULL);
   }
 
-  proc_t *proc = proc_cria(self->proc_qtd + 1, end);
+  proc_t *proc = proc_cria(self->proc_id++, end);
 
   self->proc_tabela[self->proc_qtd++] = proc;
   esc_insere_proc(self->esc, proc);
