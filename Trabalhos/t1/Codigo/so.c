@@ -241,14 +241,16 @@ static void so_salva_estado_da_cpu(so_t *self)
     return;
   }
   
-  int PC, A, X;
+  int PC, A, X, complemento;
   mem_le(self->mem, IRQ_END_PC, &PC);
   mem_le(self->mem, IRQ_END_A, &A);
   mem_le(self->mem, IRQ_END_X, &X);
+  mem_le(self->mem, IRQ_END_complemento, &complemento);
 
   proc_define_PC(proc, PC);
   proc_define_A(proc, A);
   proc_define_X(proc, X);
+  proc_define_complemento(proc, complemento);
 }
 
 static void so_sincroniza(so_t *self)
@@ -347,10 +349,12 @@ static int so_despacha(so_t *self)
   int PC = proc_PC(proc);
   int A = proc_A(proc);
   int X = proc_X(proc);
+  int complemento = proc_complemento(proc);
 
   mem_escreve(self->mem, IRQ_END_PC, PC);
   mem_escreve(self->mem, IRQ_END_A, A);
   mem_escreve(self->mem, IRQ_END_X, X);
+  mem_escreve(self->mem, IRQ_END_complemento, complemento);
 
   return 0;
 }

@@ -17,6 +17,7 @@ struct proc_t
   int reg_PC;
   int reg_A;
   int reg_X;
+  int reg_complemento;
 
   proc_metricas_t metricas;
 };
@@ -40,6 +41,7 @@ proc_t *proc_cria(int id, int end)
   self->reg_PC = end;
   self->reg_A = 0;
   self->reg_X = 0;
+  self->reg_complemento = 0;
 
   self->metricas.t_retorno = 0;
   self->metricas.n_preempcoes = 0;
@@ -130,6 +132,11 @@ int proc_X(proc_t *self)
   return self->reg_X;
 }
 
+int proc_complemento(proc_t *self)
+{
+  return self->reg_complemento;
+}
+
 void proc_define_PC(proc_t *self, int valor)
 {
   self->reg_PC = valor;
@@ -143,6 +150,11 @@ void proc_define_A(proc_t *self, int valor)
 void proc_define_X(proc_t *self, int valor)
 {
   self->reg_X = valor;
+}
+
+void proc_define_complemento(proc_t *self, int valor)
+{
+  self->reg_complemento = valor;
 }
 
 proc_bloq_motivo_t proc_bloq_motivo(proc_t *self)
