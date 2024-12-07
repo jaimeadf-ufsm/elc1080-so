@@ -3,8 +3,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
-struct proc_t
-{
+struct proc_t {
   int id;
   double prioridade;
   proc_estado_t estado;

@@ -5,10 +5,10 @@
 #include "proc.h"
 
 typedef enum {
-    ESC_MODO_SIMPLES,
-    ESC_MODO_CIRCULAR,
-    ESC_MODO_PRIORITARIO,
-    N_ESC_MODO
+  ESC_MODO_SIMPLES,
+  ESC_MODO_CIRCULAR,
+  ESC_MODO_PRIORITARIO,
+  N_ESC_MODO
 } esc_modo_t;
 
 typedef struct esc_t esc_t;

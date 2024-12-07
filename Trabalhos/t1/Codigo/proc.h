@@ -2,18 +2,18 @@
 #define PROC_H
 
 typedef enum {
-    PROC_ESTADO_EXECUTANDO,
-    PROC_ESTADO_PRONTO,
-    PROC_ESTADO_BLOQUEADO,
-    PROC_ESTADO_MORTO,
-    N_PROC_ESTADO
+  PROC_ESTADO_EXECUTANDO,
+  PROC_ESTADO_PRONTO,
+  PROC_ESTADO_BLOQUEADO,
+  PROC_ESTADO_MORTO,
+  N_PROC_ESTADO
 } proc_estado_t;
 
 typedef enum {
-    PROC_BLOQ_LEITURA,
-    PROC_BLOQ_ESCRITA,
-    PROC_BLOQ_ESPERA_PROC,
-    N_PROC_BLOQ
+  PROC_BLOQ_LEITURA,
+  PROC_BLOQ_ESCRITA,
+  PROC_BLOQ_ESPERA_PROC,
+  N_PROC_BLOQ
 } proc_bloq_motivo_t;
 
 typedef struct proc_t proc_t;
@@ -22,18 +22,18 @@ typedef struct proc_metricas_t proc_metricas_t;
 
 struct proc_estado_metricas_t
 {
-    int n_vezes;
-    int t_total;
+  int n_vezes;
+  int t_total;
 };
 
 struct proc_metricas_t
 {
-    int n_preempcoes;
-    
-    int t_retorno;
-    int t_resposta;
+  int n_preempcoes;
 
-    proc_estado_metricas_t estados[N_PROC_ESTADO];
+  int t_retorno;
+  int t_resposta;
+
+  proc_estado_metricas_t estados[N_PROC_ESTADO];
 };
 
 proc_t *proc_cria(int id, int end);
