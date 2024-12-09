@@ -1,6 +1,8 @@
 #ifndef PROC_H
 #define PROC_H
 
+#include "err.h"
+
 typedef enum {
   PROC_ESTADO_EXECUTANDO,
   PROC_ESTADO_PRONTO,
@@ -62,11 +64,13 @@ int proc_PC(proc_t *self);
 int proc_A(proc_t *self);
 int proc_X(proc_t *self);
 int proc_complemento(proc_t *self);
+err_t proc_erro(proc_t *self);
 
 void proc_define_PC(proc_t *self, int valor);
 void proc_define_A(proc_t *self, int valor);
 void proc_define_X(proc_t *self, int valor);
 void proc_define_complemento(proc_t *self, int valor);
+void proc_define_erro(proc_t *self, err_t valor);
 
 proc_metricas_t proc_metricas(proc_t *self);
 void proc_atualiza_metricas(proc_t *self, int delta);

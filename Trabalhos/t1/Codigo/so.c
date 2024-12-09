@@ -241,16 +241,18 @@ static void so_salva_estado_da_cpu(so_t *self)
     return;
   }
   
-  int PC, A, X, complemento;
+  int PC, A, X, complemento, erro;
   mem_le(self->mem, IRQ_END_PC, &PC);
   mem_le(self->mem, IRQ_END_A, &A);
   mem_le(self->mem, IRQ_END_X, &X);
   mem_le(self->mem, IRQ_END_complemento, &complemento);
+  mem_le(self->mem, IRQ_END_erro, &erro);
 
   proc_define_PC(proc, PC);
   proc_define_A(proc, A);
   proc_define_X(proc, X);
   proc_define_complemento(proc, complemento);
+  proc_define_erro(proc, erro);
 }
 
 static void so_sincroniza(so_t *self)
@@ -350,11 +352,13 @@ static int so_despacha(so_t *self)
   int A = proc_A(proc);
   int X = proc_X(proc);
   int complemento = proc_complemento(proc);
+  int erro = proc_erro(proc);
 
   mem_escreve(self->mem, IRQ_END_PC, PC);
   mem_escreve(self->mem, IRQ_END_A, A);
   mem_escreve(self->mem, IRQ_END_X, X);
   mem_escreve(self->mem, IRQ_END_complemento, complemento);
+  mem_escreve(self->mem, IRQ_END_erro, erro);
 
   return 0;
 }
@@ -516,14 +520,18 @@ static void so_trata_irq_err_cpu(so_t *self)
   // O erro está codificado em IRQ_END_erro
   // Em geral, causa a morte do processo que causou o erro
   // Ainda não temos processos, causa a parada da CPU
-  int err_int;
   // t1: com suporte a processos, deveria pegar o valor do registrador erro
   //   no descritor do processo corrente, e reagir de acordo com esse erro
   //   (em geral, matando o processo)
-  mem_le(self->mem, IRQ_END_erro, &err_int);
-  err_t err = err_int;
-  console_printf("SO: IRQ não tratada -- erro na CPU: %s", err_nome(err));
-  self->erro_interno = true;
+  proc_t *proc = self->proc_corrente;
+
+  if (proc != NULL) {
+    console_printf("SO: processo %d - erro %s", proc_id(proc), err_nome(proc_erro(proc)));
+    so_mata_proc(self, proc);
+  } else {
+    console_printf("SO: erro interno na CPU");
+    self->erro_interno = true;
+  }
 }
 
 // interrupção gerada quando o timer expira

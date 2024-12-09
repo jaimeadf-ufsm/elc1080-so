@@ -17,6 +17,7 @@ struct proc_t {
   int reg_A;
   int reg_X;
   int reg_complemento;
+  err_t reg_erro;
 
   proc_metricas_t metricas;
 };
@@ -41,6 +42,7 @@ proc_t *proc_cria(int id, int end)
   self->reg_A = 0;
   self->reg_X = 0;
   self->reg_complemento = 0;
+  self->reg_erro = 0;
 
   self->metricas.t_retorno = 0;
   self->metricas.n_preempcoes = 0;
@@ -116,46 +118,6 @@ void proc_define_prioridade(proc_t *self, double prioridade)
   self->prioridade = prioridade;
 }
 
-int proc_PC(proc_t *self)
-{
-  return self->reg_PC;
-}
-
-int proc_A(proc_t *self)
-{
-  return self->reg_A;
-}
-
-int proc_X(proc_t *self)
-{
-  return self->reg_X;
-}
-
-int proc_complemento(proc_t *self)
-{
-  return self->reg_complemento;
-}
-
-void proc_define_PC(proc_t *self, int valor)
-{
-  self->reg_PC = valor;
-}
-
-void proc_define_A(proc_t *self, int valor)
-{
-  self->reg_A = valor;
-}
-
-void proc_define_X(proc_t *self, int valor)
-{
-  self->reg_X = valor;
-}
-
-void proc_define_complemento(proc_t *self, int valor)
-{
-  self->reg_complemento = valor;
-}
-
 proc_bloq_motivo_t proc_bloq_motivo(proc_t *self)
 {
   return self->bloq_motivo;
@@ -180,6 +142,56 @@ void proc_atribui_porta(proc_t *self, int porta)
 void proc_desatribui_porta(proc_t *self)
 {
   self->porta = -1;
+}
+
+int proc_PC(proc_t *self)
+{
+  return self->reg_PC;
+}
+
+int proc_A(proc_t *self)
+{
+  return self->reg_A;
+}
+
+int proc_X(proc_t *self)
+{
+  return self->reg_X;
+}
+
+int proc_complemento(proc_t *self)
+{
+  return self->reg_complemento;
+}
+
+err_t proc_erro(proc_t *self)
+{
+  return self->reg_erro;
+}
+
+void proc_define_PC(proc_t *self, int valor)
+{
+  self->reg_PC = valor;
+}
+
+void proc_define_A(proc_t *self, int valor)
+{
+  self->reg_A = valor;
+}
+
+void proc_define_X(proc_t *self, int valor)
+{
+  self->reg_X = valor;
+}
+
+void proc_define_complemento(proc_t *self, int valor)
+{
+  self->reg_complemento = valor;
+}
+
+void proc_define_erro(proc_t *self, err_t valor)
+{
+  self->reg_erro = valor;
 }
 
 proc_metricas_t proc_metricas(proc_t *self)
