@@ -6,8 +6,8 @@
 #define TAM_REGS_INICIAL 4
 
 struct regswap_t {
-  int quadro_inicial;
-  int qtd_quadros;
+  int quadro_ini;
+  int quadro_fim;
 };
 
 struct alocswap_t {
@@ -43,8 +43,8 @@ regswap_t *alocswap_aloca_regiao(alocswap_t *self, int qtd_quadros)
   regswap_t *reg = (regswap_t *)malloc(sizeof(regswap_t));
   assert(reg != NULL);
 
-  reg->quadro_inicial = self->quadro_ini + self->qtd_quadros_ocupados;
-  reg->qtd_quadros = qtd_quadros;
+  reg->quadro_ini = self->quadro_ini + self->qtd_quadros_ocupados;
+  reg->quadro_fim = reg->quadro_ini + qtd_quadros - 1;
 
   self->qtd_quadros_ocupados += qtd_quadros;
 
@@ -53,17 +53,15 @@ regswap_t *alocswap_aloca_regiao(alocswap_t *self, int qtd_quadros)
 
 void alocswap_libera_regiao(alocswap_t *self, regswap_t *reg)
 {
-  self->qtd_quadros_ocupados -= reg->qtd_quadros;
   free(reg);
 }
 
-bool regswap_traduz(regswap_t *self, int pagina, int *pquadro)
+int regswap_quadro_ini(regswap_t *self)
 {
-  if (pagina < 0 || pagina >= self->qtd_quadros) {
-    return false;
-  }
+  return self->quadro_ini;
+}
 
-  *pquadro = self->quadro_inicial + pagina;
-
-  return true;
+int regswap_quadro_fim(regswap_t *self)
+{
+  return self->quadro_fim;
 }

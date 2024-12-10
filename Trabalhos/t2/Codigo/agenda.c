@@ -25,11 +25,11 @@ void agenda_destroi(agenda_t *self)
     free(self);
 }
 
-void agenda_sincroniza(agenda_t *self, int tempo)
+void agenda_sincroniza(agenda_t *self, int relogio)
 {
-    if (tempo > self->atraso)
+    if (relogio > self->atraso)
     {
-      self->atraso = tempo;
+      self->atraso = relogio;
     }
 }
 

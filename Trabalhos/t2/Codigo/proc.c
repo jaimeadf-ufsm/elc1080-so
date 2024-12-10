@@ -19,6 +19,9 @@ struct proc_t {
   int reg_complemento;
   err_t reg_erro;
 
+  int pagina_ini;
+  int pagina_fim;
+
   tabpag_t *tabpag;
   regswap_t *regswap;
 
@@ -27,7 +30,7 @@ struct proc_t {
 
 static void proc_muda_estado(proc_t *self, proc_estado_t estado);
 
-proc_t *proc_cria(int id, int end)
+proc_t *proc_cria(int id)
 {
   proc_t *self = malloc(sizeof(proc_t));
   assert(self != NULL);
@@ -41,14 +44,21 @@ proc_t *proc_cria(int id, int end)
 
   self->porta = -1;
 
-  self->reg_PC = end;
+  self->reg_PC = 0;
   self->reg_A = 0;
   self->reg_X = 0;
   self->reg_complemento = 0;
   self->reg_erro = 0;
 
+  self->pagina_ini = 0;
+  self->pagina_fim = 0;
+
+  self->tabpag = NULL;
+  self->regswap = NULL;
+
   self->metricas.t_retorno = 0;
   self->metricas.n_preempcoes = 0;
+  self->metricas.n_falhas_pag = 0;
 
   for (int i = 0; i < N_PROC_ESTADO; i++) {
     self->metricas.estados[i].n_vezes = 0;
@@ -147,6 +157,67 @@ void proc_desatribui_porta(proc_t *self)
   self->porta = -1;
 }
 
+void proc_mem(proc_t *self, int *pagina_ini, int *pagina_fim)
+{
+  *pagina_ini = self->pagina_ini;
+  *pagina_fim = self->pagina_fim;
+}
+
+void proc_define_mem(proc_t *self, int pagina_ini, int pagina_fim)
+{
+  self->pagina_ini = pagina_ini;
+  self->pagina_fim = pagina_fim;
+}
+
+tabpag_t *proc_tabpag(proc_t *self)
+{
+  return self->tabpag;
+}
+
+void proc_vincula_tabpag(proc_t *self, tabpag_t *tabpag)
+{
+  self->tabpag = tabpag;
+}
+
+void proc_desvincula_tabpag(proc_t *self)
+{
+  self->tabpag = NULL;
+}
+
+regswap_t *proc_regswap(proc_t *self)
+{
+  return self->regswap;
+}
+
+void proc_vincula_regswap(proc_t *self, regswap_t *regswap)
+{
+  self->regswap = regswap;
+}
+
+void proc_desvincula_regswap(proc_t *self)
+{
+  self->regswap = NULL;
+}
+
+int proc_normaliza_pagina(proc_t *self, int pagina)
+{
+  if (pagina < self->pagina_ini || pagina > self->pagina_fim) {
+    return -1;
+  }
+
+  return pagina - self->pagina_ini;
+}
+
+bool proc_valida_pagina(proc_t *self, int pagina)
+{
+  return pagina >= self->pagina_ini && pagina <= self->pagina_fim;
+}
+
+void proc_falha_pagina(proc_t *self)
+{
+  self->metricas.n_falhas_pag++;
+}
+
 int proc_PC(proc_t *self)
 {
   return self->reg_PC;
@@ -195,36 +266,6 @@ void proc_define_complemento(proc_t *self, int valor)
 void proc_define_erro(proc_t *self, err_t valor)
 {
   self->reg_erro = valor;
-}
-
-tabpag_t *proc_tabpag(proc_t *self)
-{
-  return self->tabpag;
-}
-
-void proc_vincula_tabpag(proc_t *self, tabpag_t *tabpag)
-{
-  self->tabpag = tabpag;
-}
-
-void proc_desvincula_tabpag(proc_t *self)
-{
-  self->tabpag = NULL;
-}
-
-regswap_t *proc_regswap(proc_t *self)
-{
-  return self->regswap;
-}
-
-void proc_vincula_regswap(proc_t *self, regswap_t *regswap)
-{
-  self->regswap = regswap;
-}
-
-void proc_desvincula_regswap(proc_t *self)
-{
-  self->regswap = NULL;
 }
 
 proc_metricas_t proc_metricas(proc_t *self)

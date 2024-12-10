@@ -18,7 +18,7 @@
 #include <stdlib.h>
 
 // constantes
-#define MEM_TAM 10000        // tamanho da memória principal
+#define MEM_TAM 300        // tamanho da memória principal
 #define DSK_TAM 1000000      // tamanho do disco
 
 // estrutura com os componentes do computador simulado

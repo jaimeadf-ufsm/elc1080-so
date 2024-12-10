@@ -12,6 +12,7 @@ void alocswap_destroi(alocswap_t *self);
 regswap_t *alocswap_aloca_regiao(alocswap_t *self, int qtd_quadros);
 void alocswap_libera_regiao(alocswap_t *self, regswap_t *reg);
 
-bool regswap_traduz(regswap_t *self, int pagina, int *pquadro);
+int regswap_quadro_ini(regswap_t *self);
+int regswap_quadro_fim(regswap_t *self);
 
 #endif

@@ -14,6 +14,11 @@
 #include "esc.h"
 #include "tabela.h"
 
+#include "agenda.h"
+#include "alocmem.h"
+#include "alocswap.h"
+#include "filapag.h"
+
 #include <stdlib.h>
 #include <stdbool.h>
 #include <assert.h>
@@ -23,9 +28,12 @@
 #define INTERVALO_INTERRUPCAO 50   // em instruções executadas
 #define INTERVALO_QUANTUM 5 // em interrupções de relógio
 
+#define LATENCIA_DISCO 1 // em instruções
+
 #define TAM_TABELA_PROC 16
 
 #define ESC_MODO ESC_MODO_SIMPLES
+#define MEM_MODO FILAPAG_MODO_SEGUNDA_CHANCE
 
 typedef struct so_metricas_t so_metricas_t;
 
@@ -56,9 +64,6 @@ struct so_metricas_t {
 //   tem um tipo para isso. Chutei o tipo int. Foi necessário também um valor para
 //   representar a inexistência de um processo, coloquei -1. Altere para o seu
 //   tipo, ou substitua os usos de processo_t e NENHUM_PROCESSO para o seu tipo.
-typedef int processo_t;
-#define NENHUM_PROCESSO -1
-
 struct so_t {
   cpu_t *cpu;
   mem_t *mem;
@@ -68,6 +73,10 @@ struct so_t {
   console_t *console;
   com_t *com;
   esc_t *esc;
+  agenda_t *agenda;
+  alocmem_t *alocmem;
+  alocswap_t *alocswap;
+  filapag_t *filapag;
 
   int proc_tam;
   int proc_qtd;
@@ -89,11 +98,11 @@ struct so_t {
   // primeiro quadro da memória que está livre (quadros anteriores estão ocupados)
   // t2: com memória virtual, o controle de memória livre e ocupada é mais
   //     completo que isso
-  int quadro_livre;
+  // int quadro_livre;
   // uma tabela de páginas para poder usar a MMU
   // t2: com processos, não tem esta tabela global, tem que ter uma para
   //     cada processo
-  tabpag_t *tabpag_global;
+  // tabpag_t *tabpag_global;
 };
 
 
@@ -102,14 +111,26 @@ static int so_trata_interrupcao(void *argC, int reg_A);
 
 // função de gerenciamento de processos
 static proc_t *so_busca_proc(so_t *self, int pid);
-static proc_t *so_gera_proc(so_t *self, char *nome_do_executavel);
+static proc_t *so_gera_proc(so_t *self);
 static void so_mata_proc(so_t *self, proc_t *proc);
 static void so_executa_proc(so_t *self, proc_t *proc);
 static void so_bloqueia_proc(so_t *self, proc_t *proc, proc_bloq_motivo_t motivo, int arg);
 static void so_desbloqueia_proc(so_t *self, proc_t *proc);
+static void so_atrasa_proc(so_t *self, proc_t *proc, int t);
 static void so_assegura_porta_proc(so_t *self, proc_t *proc);
 static bool so_deve_escalonar(so_t *self);
 static bool so_tem_trabalho(so_t *self);
+
+// função de controle de memória virtual
+static bool so_resolve_falta_pagina(so_t *self, proc_t *proc, int pagina);
+static bool so_adquire_pagina(so_t *self, proc_t *proc, int pagina);
+static void so_larga_pagina(so_t *self, proc_t *proc, int pagina);
+static bool so_aloca_quadro(so_t *self, int *pquadro);
+static bool so_reivindica_quadro(so_t *self, int *pquadro);
+static void so_copia_pagina_para_mem(so_t *self, proc_t *proc, int pagina);
+static void so_copia_pagina_para_swap(so_t *self, proc_t *proc, int pagina);
+static bool so_pega_mem_proc(so_t *self, proc_t *proc, int end, int *pdado);
+// static bool so_poe_mem_proc(so_t *self, proc_t *proc, int end, int dado);
 
 // funções para contabilização de métricas
 static void so_atualiza_metricas(so_t *self, int delta);
@@ -118,11 +139,11 @@ static void so_imprime_metricas(so_t *self);
 // funções auxiliares
 // no t2, foi adicionado o 'processo' aos argumentos dessas funções 
 // carrega o programa na memória virtual de um processo; retorna end. inicial
-static int so_carrega_programa(so_t *self, processo_t processo,
+static int so_carrega_programa(so_t *self, proc_t *proc,
                                char *nome_do_executavel);
 // copia para str da memória do processo, até copiar um 0 (retorna true) ou tam bytes
 static bool so_copia_str_do_processo(so_t *self, int tam, char str[tam],
-                                     int end_virt, processo_t processo);
+                                     int end_virt, proc_t *proc);
 
 // CRIAÇÃO {{{1
 
@@ -133,6 +154,9 @@ so_t *so_cria(cpu_t *cpu, mem_t *mem, mem_t *dsk, mmu_t *mmu,
   so_t *self = malloc(sizeof(*self));
   assert(self != NULL);
 
+  int quadro_usavel_ini = 99 / TAM_PAGINA + 1;
+  int quadro_usavel_fim = mem_tam(mem) / TAM_PAGINA - 1;
+
   self->cpu = cpu;
   self->mem = mem;
   self->dsk = dsk;
@@ -141,6 +165,10 @@ so_t *so_cria(cpu_t *cpu, mem_t *mem, mem_t *dsk, mmu_t *mmu,
   self->console = console;
   self->esc = esc_cria(ESC_MODO);
   self->com = com_cria(es);
+  self->agenda = agenda_cria(LATENCIA_DISCO);
+  self->alocmem = alocmem_cria(quadro_usavel_ini, quadro_usavel_fim);
+  self->alocswap = alocswap_cria(0, mem_tam(dsk) / TAM_PAGINA - 1);
+  self->filapag = filapag_cria(MEM_MODO, quadro_usavel_ini, quadro_usavel_fim);
 
   self->proc_tam = TAM_TABELA_PROC;
   self->proc_qtd = 0;
@@ -182,7 +210,7 @@ so_t *so_cria(cpu_t *cpu, mem_t *mem, mem_t *dsk, mmu_t *mmu,
   //   de interrupção (escrito em asm). esse programa deve conter a 
   //   instrução CHAMAC, que vai chamar so_trata_interrupcao (como
   //   foi definido acima)
-  int ender = so_carrega_programa(self, NENHUM_PROCESSO, "trata_int.maq");
+  int ender = so_carrega_programa(self, NULL, "trata_int.maq");
   if (ender != IRQ_END_TRATADOR) {
     console_printf("SO: problema na carga do programa de tratamento de interrupção");
     self->erro_interno = true;
@@ -197,13 +225,13 @@ so_t *so_cria(cpu_t *cpu, mem_t *mem, mem_t *dsk, mmu_t *mmu,
   // inicializa a tabela de páginas global, e entrega ela para a MMU
   // t2: com processos, essa tabela não existiria, teria uma por processo, que
   //     deve ser colocada na MMU quando o processo é despachado para execução
-  self->tabpag_global = tabpag_cria();
-  mmu_define_tabpag(self->mmu, self->tabpag_global);
+  // self->tabpag_global = tabpag_cria();
+  // mmu_define_tabpag(self->mmu, self->tabpag_global);
   // define o primeiro quadro livre de memória como o seguinte àquele que
   //   contém o endereço 99 (as 100 primeiras posições de memória (pelo menos)
   //   não vão ser usadas por programas de usuário)
   // t2: o controle de memória livre deve ser mais aprimorado que isso  
-  self->quadro_livre = 99 / TAM_PAGINA + 1;
+  // self->quadro_livre = 99 / TAM_PAGINA + 1;
   return self;
 }
 
@@ -320,6 +348,8 @@ static void so_sincroniza(so_t *self)
   int delta = self->t_relogio_atual - t_relogio_anterior;
 
   so_atualiza_metricas(self, delta);
+
+  agenda_sincroniza(self->agenda, self->t_relogio_atual);
 }
 
 static void so_trata_pendencias(so_t *self)
@@ -411,6 +441,8 @@ static int so_despacha(so_t *self)
   mem_escreve(self->mem, IRQ_END_complemento, complemento);
   mem_escreve(self->mem, IRQ_END_erro, erro);
 
+  mmu_define_tabpag(self->mmu, proc_tabpag(proc));
+
   return 0;
 }
 
@@ -434,6 +466,7 @@ static int so_desliga(so_t *self)
 static void so_trata_bloq_leitura(so_t *self, proc_t *proc);
 static void so_trata_bloq_escrita(so_t *self, proc_t *proc);
 static void so_trata_bloq_espera_proc(so_t *self, proc_t *proc);
+static void so_trata_bloq_atraso(so_t *self, proc_t *proc);
 static void so_trata_bloq_desconhecido(so_t *self, proc_t *proc);
 
 static void so_trata_bloq(so_t *self, proc_t *proc)
@@ -450,6 +483,9 @@ static void so_trata_bloq(so_t *self, proc_t *proc)
     break;
   case PROC_BLOQ_ESPERA_PROC:
     so_trata_bloq_espera_proc(self, proc);
+    break;
+  case PROC_BLOQ_ATRASO:
+    so_trata_bloq_atraso(self, proc);
     break;
   default:
     so_trata_bloq_desconhecido(self, proc);
@@ -503,6 +539,16 @@ static void so_trata_bloq_espera_proc(so_t *self, proc_t *proc)
   }
 }
 
+static void so_trata_bloq_atraso(so_t *self, proc_t *proc)
+{
+  int t_alvo = proc_bloq_arg(proc);
+
+  if (t_alvo <= self->t_relogio_atual) {
+    so_desbloqueia_proc(self, proc);
+    console_printf("SO: processo %d - desbloqueia de atraso", proc_id(proc));
+  }
+}
+
 static void so_trata_bloq_desconhecido(so_t *self, proc_t *proc)
 {
   console_printf("SO: não sei tratar bloqueio por motivo %d", proc_bloq_motivo(proc));
@@ -549,33 +595,25 @@ static void so_trata_irq_reset(so_t *self)
   //   registradores diretamente para a memória, de onde a CPU vai carregar
   //   para os seus registradores quando executar a instrução RETI
 
-<<<<<<< Trabalhos/t2/Codigo/so.c
   // coloca o programa "init" na memória
   // t2: deveria criar um processo, e programar a tabela de páginas dele
-  processo_t processo = 1; // deveria inicializar um processo...
-  int ender = so_carrega_programa(self, processo, "init.maq");
+  proc_t *proc = so_gera_proc(self); // deveria inicializar um processo...
+  int ender = so_carrega_programa(self, proc, "init.maq");
   if (ender != 0) {
-=======
-  // coloca o programa init na memória
-  proc_t *proc = so_gera_proc(self, "init.maq");
-
-  if (proc_PC(proc) != 100) {
->>>>>>> Trabalhos/t1/Codigo/so.c
     console_printf("SO: problema na carga do programa inicial");
     self->erro_interno = true;
     return;
   }
 
-<<<<<<< Trabalhos/t2/Codigo/so.c
   // altera o PC para o endereço de carga (deve ter sido o endereço virtual 0)
-  mem_escreve(self->mem, IRQ_END_PC, ender);
-=======
-  // altera o PC para o endereço de carga
+  proc_define_PC(proc, ender);
   // mem_escreve(self->mem, IRQ_END_PC, ender);
->>>>>>> Trabalhos/t1/Codigo/so.c
   // passa o processador para modo usuário
   mem_escreve(self->mem, IRQ_END_modo, usuario);
 }
+
+static void so_trata_err_cpu_pag_ausente(so_t *self);
+static void so_trata_err_cpu_desconhecido(so_t *self);
 
 // interrupção gerada quando a CPU identifica um erro
 static void so_trata_irq_err_cpu(so_t *self)
@@ -589,13 +627,53 @@ static void so_trata_irq_err_cpu(so_t *self)
   //   (em geral, matando o processo)
   proc_t *proc = self->proc_corrente;
 
-  if (proc != NULL) {
-    console_printf("SO: processo %d - erro %s", proc_id(proc), err_nome(proc_erro(proc)));
-    so_mata_proc(self, proc);
-  } else {
+  if (proc == NULL) {
     console_printf("SO: erro interno na CPU");
     self->erro_interno = true;
+    return;
+  } 
+
+  switch (proc_erro(proc)) {
+    case ERR_PAG_AUSENTE:
+      so_trata_err_cpu_pag_ausente(self);
+      break;
+    default:
+      so_trata_err_cpu_desconhecido(self);
   }
+}
+
+static void so_trata_err_cpu_pag_ausente(so_t *self)
+{
+  proc_t *proc = self->proc_corrente;
+
+  int end_virt = proc_complemento(proc);
+  int pagina = end_virt / TAM_PAGINA;
+
+  console_printf(
+    "SO: processo %d - endereco virtual %d fora da memoria",
+    proc_id(proc),
+    end_virt
+  );
+
+  if (so_resolve_falta_pagina(self, proc, pagina)) {
+    proc_define_erro(proc, ERR_OK);
+  } else {
+    console_printf(
+      "SO: processo %d - falha ao resolver página %d ausente",
+      pagina,
+      proc_id(proc)
+    );
+
+    self->erro_interno = true;
+  }
+}
+
+static void so_trata_err_cpu_desconhecido(so_t *self)
+{
+  proc_t *proc = self->proc_corrente;
+
+  console_printf("SO: processo %d - erro %s", proc_id(proc), err_nome(proc_erro(proc)));
+  so_mata_proc(self, proc);
 }
 
 // interrupção gerada quando o timer expira
@@ -742,53 +820,43 @@ static void so_chamada_escr(so_t *self)
 // cria um processo
 static void so_chamada_cria_proc(so_t *self)
 {
-  // ainda sem suporte a processos, carrega programa e passa a executar ele
-  // quem chamou o sistema não vai mais ser executado, coitado!
-  // T1: deveria criar um novo processo
-<<<<<<< Trabalhos/t2/Codigo/so.c
-  processo_t processo = 1; // T2: o processo criado
-=======
   proc_t *proc = self->proc_corrente;
 
   if (proc == NULL) {
     return;
   }
->>>>>>> Trabalhos/t1/Codigo/so.c
+
+  // ainda sem suporte a processos, carrega programa e passa a executar ele
+  // quem chamou o sistema não vai mais ser executado, coitado!
+  // T1: deveria criar um novo processo  
 
   // em X está o endereço onde está o nome do arquivo
   // t1: deveria ler o X do descritor do processo criador
-<<<<<<< Trabalhos/t2/Codigo/so.c
-  if (mem_le(self->mem, IRQ_END_X, &ender_proc) == ERR_OK) {
-    char nome[100];
-    if (so_copia_str_do_processo(self, 100, nome, ender_proc, processo)) {
-      int ender_carga = so_carrega_programa(self, processo, nome);
-      // o endereço de carga é endereço virtual, deve ser 0
-      if (ender_carga == 0) {
-        // deveria escrever no PC do descritor do processo criado
-        mem_escreve(self->mem, IRQ_END_PC, ender_carga);
-        return;
-      } // else?
-    }
-=======
-  int ender_proc = proc_X(proc);
-  char nome[100];
+  int ender_exec = proc_X(proc);
+  char nome_exec[100];
 
-  if (copia_str_da_mem(100, nome, self->mem, ender_proc)) {
-    console_printf(
-      "SO: processo %d - cria processo (nome: %s)",
-      proc_id(self->proc_corrente),
-      nome
-    );
+  proc_t *proc_alvo = so_gera_proc(self);
 
-    proc_t *proc_alvo = so_gera_proc(self, nome);
+  console_printf(
+    "SO: processo %d - cria processo (nome: %s)",
+    proc_id(self->proc_corrente),
+    nome_exec
+  );
 
-    if (proc_alvo != NULL) {
-      // t1: deveria escrever no PC do descritor do processo criado
+  if (so_copia_str_do_processo(self, 100, nome_exec, ender_exec, proc)) {
+    int ender_carga = so_carrega_programa(self, proc_alvo, nome_exec);
+    // o endereço de carga é endereço virtual, deve ser 0
+    if (ender_carga == 0) {
+      // deveria escrever no PC do descritor do processo criado
       proc_define_A(proc, proc_id(proc_alvo));
+      proc_define_PC(proc_alvo, ender_carga);
       return;
-    } // else?
->>>>>>> Trabalhos/t1/Codigo/so.c
+    }
   }
+
+  console_printf("SO: erro na criação do processo");
+  so_mata_proc(self, proc_alvo);
+
   // deveria escrever -1 (se erro) ou o PID do processo criado (se OK) no reg A
   //   do processo que pediu a criação
   proc_define_A(proc, -1);
@@ -866,6 +934,204 @@ static void so_chamada_espera_proc(so_t *self)
   }
 }
 
+// MEMÓRIA VIRTUAL {{{1
+
+static bool so_resolve_falta_pagina(so_t *self, proc_t *proc, int pagina)
+{
+  if (!proc_valida_pagina(proc, pagina)) {
+    console_printf(
+      "SO: processo %d - segmentation fault",
+      proc_id(proc),
+      pagina
+    );
+
+    so_mata_proc(self, proc);
+
+    return false;
+  }
+
+  console_printf(
+    "SO: processo %d - requisita pagina %d",
+    proc_id(proc),
+    pagina
+  );
+
+  proc_falha_pagina(proc);
+
+  if (!so_adquire_pagina(self, proc, pagina)) {
+    console_printf(
+      "SO: processo %d - falha ao adquirir quadro para página %d",
+      proc_id(proc),
+      pagina
+    );
+
+    return false;
+  }
+
+  so_copia_pagina_para_mem(self, proc, pagina);
+  so_atrasa_proc(self, proc, agenda_acessa(self->agenda));
+
+  return true;
+}
+
+static bool so_adquire_pagina(so_t *self, proc_t *proc, int pagina)
+{
+  int quadro;
+
+  if (!so_aloca_quadro(self, &quadro)) {
+    if (so_reivindica_quadro(self, &quadro)) {
+      agenda_acessa(self->agenda);
+    } else {
+      return false;
+    }
+  }
+
+  console_printf(
+    "SO: <q%d> = processo %d <p%d>",
+    quadro,
+    proc_id(proc),
+    pagina
+  );
+
+  tabpag_define_quadro(proc_tabpag(proc), pagina, quadro);
+  filapag_enfilera_pagina(self->filapag, proc, pagina);
+
+  return true;
+}
+
+static void so_larga_pagina(so_t *self, proc_t *proc, int pagina)
+{
+  int quadro;
+
+  if (tabpag_traduz(proc_tabpag(proc), pagina, &quadro) != ERR_OK) {
+    return;
+  }
+
+  console_printf(
+    "SO: <q%d> = NULL : processo %d <p%d>",
+    quadro,
+    proc_id(proc),
+    pagina
+  );
+
+  filapag_desenfilera_pagina(self->filapag, proc, pagina);
+  tabpag_invalida_pagina(proc_tabpag(proc), pagina);
+
+  alocmem_libera_quadro(self->alocmem, quadro);
+}
+
+static bool so_aloca_quadro(so_t *self, int *pquadro)
+{
+  return alocmem_aloca_quadro(self->alocmem, pquadro);
+}
+
+static bool so_reivindica_quadro(so_t *self, int *pquadro)
+{
+  proc_t *proc_vitima;
+  int pagina_vitima;
+
+  if (!filapag_escolhe_vitima(self->filapag, &proc_vitima, &pagina_vitima)) {
+    return false;
+  }
+
+  tabpag_traduz(proc_tabpag(proc_vitima), pagina_vitima, pquadro);
+
+  console_printf(
+    "SO: <q%d> = NULL : vitima = processo %d <p%d>",
+    *pquadro,
+    proc_id(proc_vitima),
+    pagina_vitima
+  );
+
+  so_copia_pagina_para_swap(self, proc_vitima, pagina_vitima);
+
+  filapag_desenfilera_pagina(self->filapag, proc_vitima, pagina_vitima);
+  tabpag_invalida_pagina(proc_tabpag(proc_vitima), pagina_vitima);
+
+  return true;
+}
+
+static void so_copia_pagina_para_mem(so_t *self, proc_t *proc, int pagina)
+{
+  int quadro_mem;
+  tabpag_traduz(proc_tabpag(proc), pagina, &quadro_mem);
+
+  int quadro_swap = regswap_quadro_ini(proc_regswap(proc)) + proc_normaliza_pagina(proc, pagina);
+
+  int end_mem = quadro_mem * TAM_PAGINA;
+  int end_swap = quadro_swap * TAM_PAGINA;
+
+  for (int i = 0; i < TAM_PAGINA; i++) {
+    int dado;
+
+    mem_le(self->dsk, end_swap + i, &dado);
+    mem_escreve(self->mem, end_mem + i, dado);
+  }
+}
+
+static void so_copia_pagina_para_swap(so_t *self, proc_t *proc, int pagina)
+{
+  int quadro_mem;
+  assert(tabpag_traduz(proc_tabpag(proc), pagina, &quadro_mem) == ERR_OK);
+
+  int quadro_swap = regswap_quadro_ini(proc_regswap(proc)) + proc_normaliza_pagina(proc, pagina);
+
+  int end_mem = quadro_mem * TAM_PAGINA;
+  int end_swap = quadro_swap * TAM_PAGINA;
+
+  if (tabpag_bit_alteracao(proc_tabpag(proc), pagina)) {
+    for (int i = 0; i < TAM_PAGINA; i++) {
+      int dado;
+
+      mem_le(self->mem, end_mem + i, &dado);
+      mem_escreve(self->dsk, end_swap + i, dado);
+    }
+  }
+}
+
+static bool so_pega_mem_proc(so_t *self, proc_t *proc, int end, int *pdado)
+{
+  int pagina = end / TAM_PAGINA;
+  int deslocamento = end % TAM_PAGINA;
+
+  int quadro;
+
+  if (tabpag_traduz(proc_tabpag(proc), pagina, &quadro) != ERR_OK) {
+    if (!so_resolve_falta_pagina(self, proc, pagina)) {
+      return false;
+    }
+
+    tabpag_traduz(proc_tabpag(proc), pagina, &quadro);
+  }
+
+  tabpag_marca_bit_acesso(proc_tabpag(proc), pagina, false);
+  mem_le(self->mem, quadro * TAM_PAGINA + deslocamento, pdado);
+
+  return true;
+}
+
+// função comentada para o gcc parar de dar erro
+// static bool so_poe_mem_proc(so_t *self, proc_t *proc, int end, int dado)
+// {
+//   int pagina = end / TAM_PAGINA;
+//   int deslocamento = end % TAM_PAGINA;
+
+//   int quadro;
+
+//   if (tabpag_traduz(proc_tabpag(proc), pagina, &quadro) != ERR_OK) {
+//     if (!so_resolve_falta_pagina(self, proc, pagina)) {
+//       return false;
+//     }
+
+//     tabpag_traduz(proc_tabpag(proc), pagina, &quadro);
+//   }
+
+//   tabpag_marca_bit_acesso(proc_tabpag(proc), pagina, true);
+//   mem_escreve(self->mem, quadro * TAM_PAGINA + deslocamento, dado);
+
+//   return true;
+// }
+
 // GERENCIAMENTO DE PROCESSOS{{{1
 static proc_t *so_busca_proc(so_t *self, int pid)
 {
@@ -878,21 +1144,15 @@ static proc_t *so_busca_proc(so_t *self, int pid)
   return NULL;
 }
 
-static proc_t *so_gera_proc(so_t *self, char *nome_do_executavel)
+static proc_t *so_gera_proc(so_t *self)
 {
-  int end = so_carrega_programa(self, nome_do_executavel);
-
-  if (end <= 0) {
-    return NULL;
-  }
-
   if (self->proc_qtd == self->proc_tam) {
     self->proc_tam = self->proc_tam * 2;
     self->proc_tabela = realloc(self->proc_tabela, self->proc_tam * sizeof(*self->proc_tabela));
     assert(self->proc_tabela != NULL);
   }
 
-  proc_t *proc = proc_cria(self->proc_id++, end);
+  proc_t *proc = proc_cria(self->proc_id++);
 
   self->proc_tabela[self->proc_qtd++] = proc;
   esc_insere_proc(self->esc, proc);
@@ -904,9 +1164,26 @@ static void so_mata_proc(so_t *self, proc_t *proc)
 {
   int porta = proc_porta(proc);
 
+  tabpag_t *tabpag = proc_tabpag(proc);
+  regswap_t *regswap = proc_regswap(proc);
+
   if (porta != -1) {
     proc_desatribui_porta(proc);
     com_libera_porta(self->com, porta);
+  }
+
+  if (tabpag != NULL) {
+    int pagina_ini, pagina_fim;
+    proc_mem(proc, &pagina_ini, &pagina_fim);
+
+    for (int i = pagina_ini; i <= pagina_fim; i++) {
+      so_larga_pagina(self, proc, i);
+    }
+  }
+
+  if (regswap != NULL) {
+    proc_desvincula_regswap(proc);
+    alocswap_libera_regiao(self->alocswap, regswap);
   }
 
   esc_remove_proc(self->esc, proc);
@@ -946,6 +1223,14 @@ static void so_desbloqueia_proc(so_t *self, proc_t *proc)
 {
   proc_desbloqueia(proc);
   esc_insere_proc(self->esc, proc);
+}
+
+static void so_atrasa_proc(so_t *self, proc_t *proc, int t)
+{
+  if (t > self->t_relogio_atual) {
+    console_printf("SO: processo %d - bloqueia para atraso ate %d", proc_id(proc), t);
+    so_bloqueia_proc(self, proc, PROC_BLOQ_ATRASO, t);
+  }
 }
 
 static void so_assegura_porta_proc(so_t *self, proc_t *proc)
@@ -1030,6 +1315,7 @@ static void so_imprime_metricas(so_t *self)
   tabela_t *tabela_proc_geral = tabela_cria(self->proc_qtd + 1, 4, TAM_CELULA);
   tabela_t *tabela_proc_est_vezes = tabela_cria(self->proc_qtd + 1, N_PROC_ESTADO + 1, TAM_CELULA);
   tabela_t *tabela_proc_est_tempo = tabela_cria(self->proc_qtd + 1, N_PROC_ESTADO + 1, TAM_CELULA);
+  tabela_t *tabela_proc_mem_pags = tabela_cria(self->proc_qtd + 1, 3, TAM_CELULA);
 
   tabela_preenche(tabela_proc_geral, 0, 0, "PID");
   tabela_preenche(tabela_proc_geral, 0, 1, "$N_{\\text{Preempções}}$");
@@ -1043,6 +1329,10 @@ static void so_imprime_metricas(so_t *self)
     tabela_preenche(tabela_proc_est_vezes, 0, i + 1, "$N_{\\text{%s}}$", proc_estado_nome(i));
     tabela_preenche(tabela_proc_est_tempo, 0, i + 1, "$T_{\\text{%s}}$", proc_estado_nome(i));
   }
+
+  tabela_preenche(tabela_proc_mem_pags, 0, 0, "PID");
+  tabela_preenche(tabela_proc_mem_pags, 0, 1, "$N_{\\text{Páginas}}$");
+  tabela_preenche(tabela_proc_mem_pags, 0, 2, "$N_{\\text{Falhas}}$");
 
   for (int i = 0; i < self->proc_qtd; i++) {
     proc_t *proc = self->proc_tabela[i];
@@ -1061,6 +1351,13 @@ static void so_imprime_metricas(so_t *self)
       tabela_preenche(tabela_proc_est_vezes, i + 1, j + 1, "%d", proc_metricas_atual.estados[j].n_vezes);
       tabela_preenche(tabela_proc_est_tempo, i + 1, j + 1, "%d", proc_metricas_atual.estados[j].t_total);
     }
+
+    int pagina_ini, pagina_fim;
+    proc_mem(proc, &pagina_ini, &pagina_fim);
+
+    tabela_preenche(tabela_proc_mem_pags, i + 1, 0, "%d", proc_id(proc));
+    tabela_preenche(tabela_proc_mem_pags, i + 1, 1, "%d", pagina_fim - pagina_ini + 1);
+    tabela_preenche(tabela_proc_mem_pags, i + 1, 2, "%d", proc_metricas_atual.n_falhas_pag);
   }
 
   tabela_mostra(tabela_so);
@@ -1068,6 +1365,7 @@ static void so_imprime_metricas(so_t *self)
   tabela_mostra(tabela_proc_geral);
   tabela_mostra(tabela_proc_est_vezes);
   tabela_mostra(tabela_proc_est_tempo);
+  tabela_mostra(tabela_proc_mem_pags);
 
   tabela_destroi(tabela_so);
   tabela_destroi(tabela_proc_geral);
@@ -1081,11 +1379,11 @@ static void so_imprime_metricas(so_t *self)
 static int so_carrega_programa_na_memoria_fisica(so_t *self, programa_t *programa);
 static int so_carrega_programa_na_memoria_virtual(so_t *self,
                                                   programa_t *programa,
-                                                  processo_t processo);
+                                                  proc_t *proc);
 
 // carrega o programa na memória de um processo ou na memória física se NENHUM_PROCESSO
 // retorna o endereço de carga ou -1
-static int so_carrega_programa(so_t *self, processo_t processo,
+static int so_carrega_programa(so_t *self, proc_t *proc,
                                char *nome_do_executavel)
 {
   console_printf("SO: carga de '%s'", nome_do_executavel);
@@ -1097,10 +1395,10 @@ static int so_carrega_programa(so_t *self, processo_t processo,
   }
 
   int end_carga;
-  if (processo == NENHUM_PROCESSO) {
+  if (proc == NULL) {
     end_carga = so_carrega_programa_na_memoria_fisica(self, programa);
   } else {
-    end_carga = so_carrega_programa_na_memoria_virtual(self, programa, processo);
+    end_carga = so_carrega_programa_na_memoria_virtual(self, programa, proc);
   }
 
   prog_destroi(programa);
@@ -1124,7 +1422,7 @@ static int so_carrega_programa_na_memoria_fisica(so_t *self, programa_t *program
 
 static int so_carrega_programa_na_memoria_virtual(so_t *self,
                                                   programa_t *programa,
-                                                  processo_t processo)
+                                                  proc_t *proc)
 {
   // t2: isto tá furado...
   // está simplesmente lendo para o próximo quadro que nunca foi ocupado,
@@ -1139,28 +1437,41 @@ static int so_carrega_programa_na_memoria_virtual(so_t *self,
   int end_virt_fim = end_virt_ini + prog_tamanho(programa) - 1;
   int pagina_ini = end_virt_ini / TAM_PAGINA;
   int pagina_fim = end_virt_fim / TAM_PAGINA;
-  int quadro_ini = self->quadro_livre;
-  // mapeia as páginas nos quadros
-  int quadro = quadro_ini;
-  for (int pagina = pagina_ini; pagina <= pagina_fim; pagina++) {
-    //tabpag_define_quadro(self->tabpag_global, pagina, quadro);
-    quadro++;
+
+  int qtd_paginas = pagina_fim - pagina_ini + 1;
+
+  regswap_t *regswap = alocswap_aloca_regiao(self->alocswap, qtd_paginas);
+
+  if (regswap == NULL) {
+    console_printf("SO: processo %d - swap insuficiente\n", proc_id(proc));
+    return -1;
   }
-  self->quadro_livre = quadro;
+
+  tabpag_t *tabpag = tabpag_cria();
+
+  proc_define_mem(proc, pagina_ini, pagina_fim);
+  proc_vincula_tabpag(proc, tabpag);
+  proc_vincula_regswap(proc, regswap);
+
+  // mapeia as páginas nos quadros
+    //tabpag_define_quadro(self->tabpag_global, pagina, quadro);
 
   // carrega o programa na memória principal
-  int end_fis_ini = quadro_ini * TAM_PAGINA;
+  int end_fis_ini = regswap_quadro_ini(regswap) * TAM_PAGINA;
   int end_fis = end_fis_ini;
+
   for (int end_virt = end_virt_ini; end_virt <= end_virt_fim; end_virt++) {
-    if (mem_escreve(self->mem, end_fis, prog_dado(programa, end_virt)) != ERR_OK) {
+    if (mem_escreve(self->dsk, end_fis, prog_dado(programa, end_virt)) != ERR_OK) {
       console_printf("Erro na carga da memória, end virt %d fís %d\n", end_virt,
                      end_fis);
       return -1;
     }
     end_fis++;
   }
-  console_printf("carregado na memória virtual V%d-%d F%d-%d",
+
+  console_printf("carregado na memória virtual V%d-%d D%d-%d",
                  end_virt_ini, end_virt_fim, end_fis_ini, end_fis - 1);
+
   return end_virt_ini;
 }
 
@@ -1173,14 +1484,14 @@ static int so_carrega_programa_na_memoria_virtual(so_t *self,
 // T2: Com memória virtual, cada valor do espaço de endereçamento do processo
 //   pode estar em memória principal ou secundária (e tem que achar onde)
 static bool so_copia_str_do_processo(so_t *self, int tam, char str[tam],
-                                     int end_virt, processo_t processo)
+                                     int end_virt, proc_t *proc)
 {
-  if (processo == NENHUM_PROCESSO) return false;
+  if (proc == NULL) return false;
   for (int indice_str = 0; indice_str < tam; indice_str++) {
     int caractere;
     // não tem memória virtual implementada, posso usar a mmu para traduzir
     //   os endereços e acessar a memória
-    if (mmu_le(self->mmu, end_virt + indice_str, &caractere, usuario) != ERR_OK) {
+    if (!so_pega_mem_proc(self, proc, end_virt + indice_str, &caractere)) {
       return false;
     }
     if (caractere < 0 || caractere > 255) {
