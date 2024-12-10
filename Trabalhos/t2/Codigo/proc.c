@@ -19,6 +19,9 @@ struct proc_t {
   int reg_complemento;
   err_t reg_erro;
 
+  tabpag_t *tabpag;
+  regswap_t *regswap;
+
   proc_metricas_t metricas;
 };
 
@@ -192,6 +195,36 @@ void proc_define_complemento(proc_t *self, int valor)
 void proc_define_erro(proc_t *self, err_t valor)
 {
   self->reg_erro = valor;
+}
+
+tabpag_t *proc_tabpag(proc_t *self)
+{
+  return self->tabpag;
+}
+
+void proc_vincula_tabpag(proc_t *self, tabpag_t *tabpag)
+{
+  self->tabpag = tabpag;
+}
+
+void proc_desvincula_tabpag(proc_t *self)
+{
+  self->tabpag = NULL;
+}
+
+regswap_t *proc_regswap(proc_t *self)
+{
+  return self->regswap;
+}
+
+void proc_vincula_regswap(proc_t *self, regswap_t *regswap)
+{
+  self->regswap = regswap;
+}
+
+void proc_desvincula_regswap(proc_t *self)
+{
+  self->regswap = NULL;
 }
 
 proc_metricas_t proc_metricas(proc_t *self)

@@ -3,6 +3,9 @@
 
 #include "err.h"
 
+#include <tabpag.h>
+#include <alocswap.h>
+
 typedef enum {
   PROC_ESTADO_EXECUTANDO,
   PROC_ESTADO_PRONTO,
@@ -71,6 +74,14 @@ void proc_define_A(proc_t *self, int valor);
 void proc_define_X(proc_t *self, int valor);
 void proc_define_complemento(proc_t *self, int valor);
 void proc_define_erro(proc_t *self, err_t valor);
+
+tabpag_t *proc_tabpag(proc_t *self);
+void proc_vincula_tabpag(proc_t *self, tabpag_t *tabpag);
+void proc_desvincula_tabpag(proc_t *self);
+
+regswap_t *proc_regswap(proc_t *self);
+void proc_vincula_regswap(proc_t *self, regswap_t *regswap);
+void proc_desvincula_regswap(proc_t *self);
 
 proc_metricas_t proc_metricas(proc_t *self);
 void proc_atualiza_metricas(proc_t *self, int delta);

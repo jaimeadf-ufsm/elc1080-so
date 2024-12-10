@@ -62,6 +62,7 @@ typedef int processo_t;
 struct so_t {
   cpu_t *cpu;
   mem_t *mem;
+  mem_t *dsk;
   mmu_t *mmu;
   es_t *es;
   console_t *console;
@@ -126,7 +127,7 @@ static bool so_copia_str_do_processo(so_t *self, int tam, char str[tam],
 // CRIAÇÃO {{{1
 
 
-so_t *so_cria(cpu_t *cpu, mem_t *mem, mmu_t *mmu,
+so_t *so_cria(cpu_t *cpu, mem_t *mem, mem_t *dsk, mmu_t *mmu,
               es_t *es, console_t *console)
 {
   so_t *self = malloc(sizeof(*self));
@@ -134,6 +135,7 @@ so_t *so_cria(cpu_t *cpu, mem_t *mem, mmu_t *mmu,
 
   self->cpu = cpu;
   self->mem = mem;
+  self->dsk = dsk;
   self->mmu = mmu;
   self->es = es;
   self->console = console;

@@ -19,10 +19,12 @@
 
 // constantes
 #define MEM_TAM 10000        // tamanho da memória principal
+#define DSK_TAM 1000000      // tamanho do disco
 
 // estrutura com os componentes do computador simulado
 typedef struct {
   mem_t *mem;
+  mem_t *dsk;
   mmu_t *mmu;
   cpu_t *cpu;
   relogio_t *relogio;
@@ -35,6 +37,7 @@ static void cria_hardware(hardware_t *hw)
 {
   // cria a memória e a MMU
   hw->mem = mem_cria(MEM_TAM);
+  hw->dsk = mem_cria(DSK_TAM);
   hw->mmu = mmu_cria(hw->mem);
 
   // cria dispositivos de E/S
@@ -92,6 +95,7 @@ static void destroi_hardware(hardware_t *hw)
   relogio_destroi(hw->relogio);
   console_destroi(hw->console);
   mmu_destroi(hw->mmu);
+  mem_destroi(hw->dsk);
   mem_destroi(hw->mem);
 }
 
@@ -103,7 +107,7 @@ int main()
   // cria o hardware
   cria_hardware(&hw);
   // cria o sistema operacional
-  so = so_cria(hw.cpu, hw.mem, hw.mmu, hw.es, hw.console);
+  so = so_cria(hw.cpu, hw.mem, hw.dsk, hw.mmu, hw.es, hw.console);
   
   // executa o laço principal do controlador
   controle_laco(hw.controle);
