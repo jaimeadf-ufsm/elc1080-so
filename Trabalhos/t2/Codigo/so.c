@@ -239,6 +239,10 @@ void so_destroi(so_t *self)
   cpu_define_chamaC(self->cpu, NULL, NULL);
   com_destroi(self->com);
   esc_destroi(self->esc);
+  agenda_destroi(self->agenda);
+  alocmem_destroi(self->alocmem);
+  alocswap_destroi(self->alocswap);
+  filapag_destroi(self->filapag);
 
   for (int i = 0; i < self->proc_qtd; i++) {
     proc_destroi(self->proc_tabela[i]);
