@@ -1015,7 +1015,7 @@ static void so_larga_pagina(so_t *self, proc_t *proc, int pagina)
   }
 
   console_printf(
-    "SO: <q%d> = NULL : processo %d <p%d>",
+    "SO: <q%d> = NULL : larga - processo %d <p%d>",
     quadro,
     proc_id(proc),
     pagina
@@ -1044,7 +1044,7 @@ static bool so_reivindica_quadro(so_t *self, int *pquadro)
   tabpag_traduz(proc_tabpag(proc_vitima), pagina_vitima, pquadro);
 
   console_printf(
-    "SO: <q%d> = NULL : vitima = processo %d <p%d>",
+    "SO: <q%d> = NULL : vítima - processo %d <p%d>",
     *pquadro,
     proc_id(proc_vitima),
     pagina_vitima
