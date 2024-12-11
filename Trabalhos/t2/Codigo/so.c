@@ -116,7 +116,6 @@ static void so_mata_proc(so_t *self, proc_t *proc);
 static void so_executa_proc(so_t *self, proc_t *proc);
 static void so_bloqueia_proc(so_t *self, proc_t *proc, proc_bloq_motivo_t motivo, int arg);
 static void so_desbloqueia_proc(so_t *self, proc_t *proc);
-static void so_atrasa_proc(so_t *self, proc_t *proc, int t);
 static void so_assegura_porta_proc(so_t *self, proc_t *proc);
 static bool so_deve_escalonar(so_t *self);
 static bool so_tem_trabalho(so_t *self);
@@ -466,7 +465,7 @@ static int so_desliga(so_t *self)
 static void so_trata_bloq_leitura(so_t *self, proc_t *proc);
 static void so_trata_bloq_escrita(so_t *self, proc_t *proc);
 static void so_trata_bloq_espera_proc(so_t *self, proc_t *proc);
-static void so_trata_bloq_atraso(so_t *self, proc_t *proc);
+static void so_trata_bloq_espera_disco(so_t *self, proc_t *proc);
 static void so_trata_bloq_desconhecido(so_t *self, proc_t *proc);
 
 static void so_trata_bloq(so_t *self, proc_t *proc)
@@ -484,8 +483,8 @@ static void so_trata_bloq(so_t *self, proc_t *proc)
   case PROC_BLOQ_ESPERA_PROC:
     so_trata_bloq_espera_proc(self, proc);
     break;
-  case PROC_BLOQ_ATRASO:
-    so_trata_bloq_atraso(self, proc);
+  case PROC_BLOQ_ESPERA_DISCO:
+    so_trata_bloq_espera_disco(self, proc);
     break;
   default:
     so_trata_bloq_desconhecido(self, proc);
@@ -539,13 +538,13 @@ static void so_trata_bloq_espera_proc(so_t *self, proc_t *proc)
   }
 }
 
-static void so_trata_bloq_atraso(so_t *self, proc_t *proc)
+static void so_trata_bloq_espera_disco(so_t *self, proc_t *proc)
 {
   int t_alvo = proc_bloq_arg(proc);
 
   if (t_alvo <= self->t_relogio_atual) {
     so_desbloqueia_proc(self, proc);
-    console_printf("SO: processo %d - desbloqueia de atraso", proc_id(proc));
+    console_printf("SO: processo %d - desbloqueia de espera de disco", proc_id(proc));
   }
 }
 
@@ -968,8 +967,16 @@ static bool so_resolve_falta_pagina(so_t *self, proc_t *proc, int pagina)
     return false;
   }
 
+  int momento = agenda_acessa(self->agenda);
+
+  console_printf(
+    "SO: processo %d - bloqueia para espera de disco (%d)",
+    proc_id(proc),
+    momento
+  );
+
+  so_bloqueia_proc(self, proc, PROC_BLOQ_ESPERA_DISCO, momento);
   so_copia_pagina_para_mem(self, proc, pagina);
-  so_atrasa_proc(self, proc, agenda_acessa(self->agenda));
 
   return true;
 }
@@ -979,9 +986,7 @@ static bool so_adquire_pagina(so_t *self, proc_t *proc, int pagina)
   int quadro;
 
   if (!so_aloca_quadro(self, &quadro)) {
-    if (so_reivindica_quadro(self, &quadro)) {
-      agenda_acessa(self->agenda);
-    } else {
+    if (!so_reivindica_quadro(self, &quadro)) {
       return false;
     }
   }
@@ -1043,6 +1048,7 @@ static bool so_reivindica_quadro(so_t *self, int *pquadro)
     pagina_vitima
   );
 
+  agenda_acessa(self->agenda);
   so_copia_pagina_para_swap(self, proc_vitima, pagina_vitima);
 
   filapag_desenfilera_pagina(self->filapag, proc_vitima, pagina_vitima);
@@ -1054,7 +1060,7 @@ static bool so_reivindica_quadro(so_t *self, int *pquadro)
 static void so_copia_pagina_para_mem(so_t *self, proc_t *proc, int pagina)
 {
   int quadro_mem;
-  tabpag_traduz(proc_tabpag(proc), pagina, &quadro_mem);
+  assert(tabpag_traduz(proc_tabpag(proc), pagina, &quadro_mem) == ERR_OK);
 
   int quadro_swap = regswap_quadro_ini(proc_regswap(proc)) + proc_normaliza_pagina(proc, pagina);
 
@@ -1109,28 +1115,6 @@ static bool so_pega_mem_proc(so_t *self, proc_t *proc, int end, int *pdado)
 
   return true;
 }
-
-// função comentada para o gcc parar de dar erro
-// static bool so_poe_mem_proc(so_t *self, proc_t *proc, int end, int dado)
-// {
-//   int pagina = end / TAM_PAGINA;
-//   int deslocamento = end % TAM_PAGINA;
-
-//   int quadro;
-
-//   if (tabpag_traduz(proc_tabpag(proc), pagina, &quadro) != ERR_OK) {
-//     if (!so_resolve_falta_pagina(self, proc, pagina)) {
-//       return false;
-//     }
-
-//     tabpag_traduz(proc_tabpag(proc), pagina, &quadro);
-//   }
-
-//   tabpag_marca_bit_acesso(proc_tabpag(proc), pagina, true);
-//   mem_escreve(self->mem, quadro * TAM_PAGINA + deslocamento, dado);
-
-//   return true;
-// }
 
 // GERENCIAMENTO DE PROCESSOS{{{1
 static proc_t *so_busca_proc(so_t *self, int pid)
@@ -1223,14 +1207,6 @@ static void so_desbloqueia_proc(so_t *self, proc_t *proc)
 {
   proc_desbloqueia(proc);
   esc_insere_proc(self->esc, proc);
-}
-
-static void so_atrasa_proc(so_t *self, proc_t *proc, int t)
-{
-  if (t > self->t_relogio_atual) {
-    console_printf("SO: processo %d - bloqueia para atraso ate %d", proc_id(proc), t);
-    so_bloqueia_proc(self, proc, PROC_BLOQ_ATRASO, t);
-  }
 }
 
 static void so_assegura_porta_proc(so_t *self, proc_t *proc)
