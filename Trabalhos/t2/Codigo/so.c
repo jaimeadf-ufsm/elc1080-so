@@ -153,8 +153,11 @@ so_t *so_cria(cpu_t *cpu, mem_t *mem, mem_t *dsk, mmu_t *mmu,
   so_t *self = malloc(sizeof(*self));
   assert(self != NULL);
 
-  int quadro_usavel_ini = 99 / TAM_PAGINA + 1;
-  int quadro_usavel_fim = mem_tam(mem) / TAM_PAGINA - 1;
+  int quadro_mem_ini = 99 / TAM_PAGINA + 1;
+  int quadro_mem_fim = mem_tam(mem) / TAM_PAGINA - 1;
+
+  int quadro_dsk_ini = 0;
+  int quadro_dsk_fim = mem_tam(dsk) / TAM_PAGINA - 1;
 
   self->cpu = cpu;
   self->mem = mem;
@@ -165,9 +168,9 @@ so_t *so_cria(cpu_t *cpu, mem_t *mem, mem_t *dsk, mmu_t *mmu,
   self->esc = esc_cria(ESC_MODO);
   self->com = com_cria(es);
   self->agenda = agenda_cria(LATENCIA_DISCO);
-  self->alocmem = alocmem_cria(quadro_usavel_ini, quadro_usavel_fim);
-  self->alocswap = alocswap_cria(0, mem_tam(dsk) / TAM_PAGINA - 1);
-  self->filapag = filapag_cria(MEM_MODO, quadro_usavel_ini, quadro_usavel_fim);
+  self->alocmem = alocmem_cria(quadro_mem_ini, quadro_mem_fim);
+  self->alocswap = alocswap_cria(quadro_dsk_ini, quadro_dsk_fim);
+  self->filapag = filapag_cria(MEM_MODO, quadro_mem_ini, quadro_mem_fim);
 
   self->proc_tam = TAM_TABELA_PROC;
   self->proc_qtd = 0;
