@@ -146,15 +146,13 @@ static bool filapag_escolhe_vitima_segunda_chance(filapag_t *self, proc_t **ppro
     return false;
   }
 
-  filapag_no_t *no = self->fila;
-
-  while (tabpag_bit_acesso(proc_tabpag(no->proc), no->pagina)) {
-    tabpag_zera_bit_acesso(proc_tabpag(no->proc), no->pagina);
-    no = no->prox;
+  while (tabpag_bit_acesso(proc_tabpag(self->fila->proc), self->fila->pagina)) {
+    tabpag_zera_bit_acesso(proc_tabpag(self->fila->proc), self->fila->pagina);
+    self->fila = self->fila->prox;
   }
 
-  *pproc = no->proc;
-  *ppagina = no->pagina;
+  *pproc = self->fila->proc;
+  *ppagina = self->fila->pagina;
 
   return true;
 }
