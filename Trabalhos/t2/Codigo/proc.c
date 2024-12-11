@@ -99,6 +99,15 @@ void proc_para(proc_t *self)
 
 void proc_bloqueia(proc_t *self, proc_bloq_motivo_t motivo, int arg)
 {
+  if (
+    motivo == PROC_BLOQ_ESPERA_DISCO &&
+    self->estado == PROC_ESTADO_BLOQUEADO &&
+    self->bloq_motivo == PROC_BLOQ_ESPERA_DISCO
+  ) {
+    self->bloq_arg = arg;
+    return;
+  }
+
   assert(
     (self->estado == PROC_ESTADO_EXECUTANDO) ||
     (self->estado == PROC_ESTADO_PRONTO)

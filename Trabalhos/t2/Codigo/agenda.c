@@ -5,36 +5,36 @@
 
 struct agenda_t
 {
-    int latencia;
-    int atraso;
+  int latencia;
+  int atraso;
 };
 
 agenda_t *agenda_cria(int latencia)
 {
-    agenda_t *self = (agenda_t *)malloc(sizeof(agenda_t));
-    assert(self != NULL);
+  agenda_t *self = (agenda_t *)malloc(sizeof(agenda_t));
+  assert(self != NULL);
 
-    self->latencia = latencia;
-    self->atraso = 0;
+  self->latencia = latencia;
+  self->atraso = 0;
 
-    return self;
+  return self;
 }
 
 void agenda_destroi(agenda_t *self)
 {
-    free(self);
+  free(self);
 }
 
 void agenda_sincroniza(agenda_t *self, int relogio)
 {
-    if (relogio > self->atraso)
-    {
-      self->atraso = relogio;
-    }
+  if (relogio > self->atraso)
+  {
+    self->atraso = relogio;
+  }
 }
 
 int agenda_acessa(agenda_t *self)
 {
-    self->atraso += self->latencia;
-    return self->atraso;
+  self->atraso += self->latencia;
+  return self->atraso;
 }

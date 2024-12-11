@@ -28,7 +28,7 @@
 #define INTERVALO_INTERRUPCAO 50   // em instruções executadas
 #define INTERVALO_QUANTUM 5 // em interrupções de relógio
 
-#define LATENCIA_DISCO 1 // em instruções
+#define LATENCIA_DISCO 10 // em instruções
 
 #define TAM_TABELA_PROC 16
 
@@ -968,15 +968,17 @@ static bool so_resolve_falta_pagina(so_t *self, proc_t *proc, int pagina)
   }
 
   int momento = agenda_acessa(self->agenda);
-
-  console_printf(
-    "SO: processo %d - bloqueia para espera de disco (%d)",
-    proc_id(proc),
-    momento
-  );
-
-  so_bloqueia_proc(self, proc, PROC_BLOQ_ESPERA_DISCO, momento);
   so_copia_pagina_para_mem(self, proc, pagina);
+
+  if (momento > self->t_relogio_atual) {
+    console_printf(
+      "SO: processo %d - bloqueia para espera de disco (%d)",
+      proc_id(proc),
+      momento
+    );
+
+    so_bloqueia_proc(self, proc, PROC_BLOQ_ESPERA_DISCO, momento);
+  }
 
   return true;
 }
@@ -1048,8 +1050,10 @@ static bool so_reivindica_quadro(so_t *self, int *pquadro)
     pagina_vitima
   );
 
-  agenda_acessa(self->agenda);
-  so_copia_pagina_para_swap(self, proc_vitima, pagina_vitima);
+  if (tabpag_bit_alteracao(proc_tabpag(proc_vitima), pagina_vitima)) {
+    agenda_acessa(self->agenda);
+    so_copia_pagina_para_swap(self, proc_vitima, pagina_vitima);
+  }
 
   filapag_desenfilera_pagina(self->filapag, proc_vitima, pagina_vitima);
   tabpag_invalida_pagina(proc_tabpag(proc_vitima), pagina_vitima);
@@ -1085,13 +1089,11 @@ static void so_copia_pagina_para_swap(so_t *self, proc_t *proc, int pagina)
   int end_mem = quadro_mem * TAM_PAGINA;
   int end_swap = quadro_swap * TAM_PAGINA;
 
-  if (tabpag_bit_alteracao(proc_tabpag(proc), pagina)) {
-    for (int i = 0; i < TAM_PAGINA; i++) {
-      int dado;
+  for (int i = 0; i < TAM_PAGINA; i++) {
+    int dado;
 
-      mem_le(self->mem, end_mem + i, &dado);
-      mem_escreve(self->dsk, end_swap + i, dado);
-    }
+    mem_le(self->mem, end_mem + i, &dado);
+    mem_escreve(self->dsk, end_swap + i, dado);
   }
 }
 
