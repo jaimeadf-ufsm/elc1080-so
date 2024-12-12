@@ -2,11 +2,11 @@
 
 ## Introdução
 
-Todos os requisitos do trabalho foram implementandos, incluindo desde o gerenciamento da memória virtual, até o controle do tempo de acesso ao disco e algoritmos de substituição de páginas. As alterações foram organizadas com base no trabalho 1, sendo criados os seguintes arquivos para encapsular a lógica de controle das memórias e das páginas:
+Todos os requisitos do trabalho foram implementandos, desde o gerenciamento da memória virtual, até o controle do tempo de acesso ao disco e algoritmos de substituição de páginas. As alterações foram organizadas com base no trabalho 1, sendo criados os seguintes arquivos para encapsular a lógica de controle das memórias e das páginas:
 
 - `agenda.[ch]`: controla a data de disponibilidade do disco.
-- `alocmem.[ch]`: responsável por gerenciar o espaço livre da memória, permitindo a reserva e a liberação de quadros individuais.
-- `alocswap.[ch]`: responsável por gerenciar o espaço livre do swap, tal como o `alocmem.[ch]`, mas somente permite a alocação de regiões contíguas de quadros.
+- `alocmem.[ch]`: responsável por gerenciar o espaço livre da memória principal, permitindo a reserva e a liberação de quadros individuais.
+- `alocswap.[ch]`: responsável por gerenciar o espaço livre do memória secundária (swap), tal como o `alocmem.[ch]`, mas somente permite a alocação de regiões contíguas de quadros.
 - `filapag.[ch]`: responsável por manter a fila FIFO e escolher a página vítima para substituição de acordo com seu modo (FIFO ou Segunda Chance).
 
 Tais estruturas são criadas internamente pelo SO, o qual orquestra as chamadas tanto para o acesso dos endereços virtuais, quanto para a resolução de falta de páginas. 
@@ -14,13 +14,13 @@ Tais estruturas são criadas internamente pelo SO, o qual orquestra as chamadas 
 As seguintes estratégias para a escolha de páginas para escolha de páginas foram implementadas:
 
 - **FIFO**: Todas as páginas na memória principal estão em um fila, na qual o primeiro item da fila é a página mais antiga, enquanto que o último é a página mais recente. Toda vez que o sistema operacional precisa escolher uma página para ser substituída, a primeira página dessa fila é escolhida.
-- **Segunda Chance**: As páginas na memória principal são mantidas em uma fila circular, na qual as páginas são inseridas na mesma ordem que a FIFO. Para encontrar a página ser substituída, ele seleciona a primeira página da fila e examina o bit de acesso. Se ele for 0, essa página é a vítima. Se ele for 1, zera o bit e avança a fila, fazendo com que essa página vá para o fim da fila. Esse processo continua até que se encontre uma página para ser substituída. Note que isso dá garantia que uma página irá ser encontrada, pois, quando o algoritmo percorrer toda a fila, todas as páginas estarão com o seu bit zerado.
+- **Segunda Chance**: As páginas na memória principal são mantidas em uma fila circular, na qual as páginas são inseridas na mesma ordem em que a FIFO. Para encontrar a página para ser substituída, ele seleciona a primeira página da fila e examina o bit de acesso. Se ele for 0, essa página é a vítima. Se ele for 1, zera o bit e avança a fila, fazendo com que essa página vá para o fim da fila. Esse processo continua até que se encontre uma página para ser substituída. Note que isso garante que uma página irá ser encontrada, pois, quando o algoritmo percorrer toda a fila, todas as páginas estarão com o seu bit zerado.
 
-Este relatório objetiva analisar o desempenho da memória virtual em cada um dos processos, avaliando não só o tempo de execução, mas também a quantidade de faltas de páginas resolvidas.
+O objetivo deste relatório é analisar o desempenho da memória virtual em cada um dos processos, avaliando não só o tempo de execução, mas também a quantidade de faltas de página resolvidas.
 
 ## Metodologia
 
-Para avaliar o desempenho da memória virtual, os testes foram divididos em duas partes. Na primeira, analisa-se-á a influência do número de páginas na memória principal, ao passo que, na segunda, analisar-se-á a influência do número de palavras em cada página. Isso será realizado individualmente para cada tipo de algoritmo de substituição de página. O desempenho é medido a partir da coleta de métricas do sistema operacional durante a realização dos testes. Tais métricas incluem informações gerais do sistema operacional, como o tempo total de execução, e informações específicas de cada processo, como o tempo em cada estado, o número total de páginas e o número de falta de páginas solucionadas. Observe que o tempo é medido em número de instruções da CPU.   
+Para avaliar o desempenho da memória virtual, os testes foram divididos em duas partes. Na primeira, analisar-se-á a influência do número de páginas na memória principal, ao passo que, na segunda, analisar-se-á a influência do número de palavras em cada página. Isso será realizado individualmente para cada tipo de algoritmo de substituição de página. O desempenho é medido a partir da coleta de métricas do sistema operacional durante a realização dos testes. Tais métricas incluem informações gerais do sistema operacional, como o tempo total de execução, e informações específicas de cada processo, como o tempo em cada estado, o número total de páginas e o número de faltas de página solucionadas. Observe que o tempo é medido em número de instruções da CPU.   
 
 Os testes foram todos executados com o escalonador prioritário, configurando o intervalo de interrupção do relógio para 50 instruções e o intervalo de quantum para 5 interrupções do relógio. O motivo da escolha dessa escalonador foi o seu baixo tempo de resposta, assemelhando-se ao que ocorre em sistema operacionais reais, como identificado no trabalho 1. Além disso, o tempo escolhido para o acesso ao disco foi de 10 instruções.
 
@@ -30,7 +30,7 @@ Nesta seção, serão abordados os resultados obtidos, variando tanto o número 
 
 ### Variação de número de página
 
-Os testes desta suíte se iniciaram com 92 páginas, deconsiderando as reservadas para o sistema operacional, pois foi o mínimo encontrado para que todas as páginas dos processos coubessem em memória principal, utilizando 10 palavras para o tamanho de página. 
+Os testes desta suíte se iniciaram com 92 páginas, deconsiderando as reservadas para o modo supervisor, pois foi o mínimo encontrado para que todas as páginas dos processos coubessem em memória principal, utilizando 10 palavras para o tamanho de página. 
 
 #### FIFO
 
@@ -166,7 +166,7 @@ Por fim, a partir da observação da execução do sistema operacional, encontro
 
 #### Segunda Chance
 
-Iniciamos o primeiro teste da mesma forma do que com o algoritmo FIFO, isto é, com 92 páginas para que todos as páginas possam estar presentes em memória principal. Nesse cenário, como o algoritmo de substituição não precisar ser executado, o desempenho será o mesmo.
+Iniciamos o primeiro teste da mesma forma do que com o algoritmo FIFO, isto é, com 92 páginas para que todos as páginas possam estar presentes em memória principal. Nesse cenário, como o algoritmo de substituição não precisa ser executado, o desempenho será o mesmo.
 
 | $N_{\text{Processos}}$ | $T_{\text{Execução}}$ | $T_{\text{Ocioso}}$ | $N_{\text{Preempções}}$ | 
 | ---------------------- | ----------------------- | ------------------- | ------------------------- |
@@ -209,7 +209,7 @@ Iniciamos o primeiro teste da mesma forma do que com o algoritmo FIFO, isto é, 
 | 3   | 25                    | 25                  |
 | 4   | 25                    | 25                  |
 
-Reduzindo o número de páginas para 41, notamos que o algoritmo Segunda Chance consegue uma pequena melhora de desempenho em comparação com o algoritmo FIFO, visto que o número de falhas de páginas resolvidas diminuiu em 8,84% e o tempo total de execução do sistema permaneceu praticamente o mesmo.
+Reduzindo o número de páginas para 41, notamos que o algoritmo Segunda Chance consegue uma pequena melhora de desempenho em comparação com o algoritmo FIFO, visto que o número de falhas de página resolvidas diminuiu em 8,84% e o tempo total de execução do sistema em 0,41%.
 
 | $N_{\text{Processos}}$ | $T_{\text{Execução}}$ | $T_{\text{Ocioso}}$ | $N_{\text{Preempções}}$ | 
 | ---------------------- | ----------------------- | ------------------- | ------------------------- |
@@ -297,7 +297,7 @@ Por fim, descobriu-se que 6 é o número mínimo de páginas que permite a execu
 
 ### Variação do tamanho de página
 
-A suíte de testes dessa seção foi realizada com 300 palavras de memória total, o que significa 200 palavras de memória utilizável pelos programas. Desse modo, consideraram-se 40 páginas com 5 palavras cada para o primeiro experimento e 10 páginas com 20 palavras cada para o segundo experimento.
+A suíte de testes desta seção foi realizada com 300 palavras de memória total, o que significa 200 palavras de memória utilizável pelos programas. Desse modo, consideraram-se 40 páginas com 5 palavras cada para o primeiro experimento e 10 páginas com 20 palavras cada para o segundo experimento.
 
 #### FIFO
 
@@ -432,7 +432,7 @@ Realizando o mesmo teste com 40 páginas com 5 palavras cada, o algoritmo Segund
 | 3   | 49                    | 223                 |
 | 4   | 49                    | 184                 |
 
-Essa melhora se torna menos significativa com a redução do número de páginas para 10 com 20 palavras cada. Tal piora decorre da perca de granularidade do algoritmo para identificar as páginas acessadas com mais frequência.
+Essa melhora se torna menos significativa com a redução do número de páginas para 10 com 20 palavras cada, visto que o algoritmo perde a granularidade para identificar as páginas acessadas com mais frequência.
 
 | $N_{\text{Processos}}$ | $T_{\text{Execução}}$ | $T_{\text{Ocioso}}$ | $N_{\text{Preempções}}$ | 
 | ---------------------- | ----------------------- | ------------------- | ------------------------- |
@@ -477,4 +477,4 @@ Essa melhora se torna menos significativa com a redução do número de páginas
 
 ## Conclusão
 
-Os experimentos demonstraram que o algoritmo Segunda Chance supera o FIFO em cenários de memória limitada, reduzindo faltas de página e melhorando o desempenho devido à sua capacidade de priorizar páginas mais acessadas. Por outro lado, o FIFO mostrou-se eficiente em configurações com memória ampla, onde substituições são menos frequentes. Além disso, o aumento do tamanho das páginas diminuiu as faltas de página para ambos os algoritmos, mas reduziu a granularidade do Segunda Chance, limitando sua eficácia. 
+Os experimentos demonstraram que o algoritmo Segunda Chance supera o FIFO em cenários de memória limitada, reduzindo faltas de página e melhorando o desempenho devido à sua capacidade de priorizar páginas mais acessadas. Além disso, o aumento do tamanho das páginas diminuiu as faltas de página para ambos os algoritmos, mas reduziu a granularidade do Segunda Chance, limitando sua eficácia. 
